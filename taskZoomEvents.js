@@ -157,10 +157,11 @@ function handleFilterClick(filterItem) {
   originalQuery = currentQuery;
   closeMobileSidebar();
   updateSaveButtonVisibility();
+  // Don't send groupBy — let the plugin restore the saved per-filter preference
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
-    groupBy: currentGroupBy,
+    groupBy: null,
   });
 }
 
