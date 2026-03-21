@@ -673,14 +673,19 @@ function evaluateFilterCondition(task, filter) {
 
     case 'tag': {
       var tagVal = filter.value.toLowerCase();
+      // Bare "#" means "has any tag"
+      if (tagVal === '#') return task.tags.length > 0;
       for (var t = 0; t < task.tags.length; t++) {
-        if (task.tags[t].toLowerCase() === tagVal) return true;
+        if (task.tags[t].toLowerCase() === tagVal ||
+            task.tags[t].toLowerCase().startsWith(tagVal)) return true;
       }
       return false;
     }
 
     case 'mention': {
       var mentionVal = filter.value.toLowerCase();
+      // Bare "@" means "has any mention"
+      if (mentionVal === '@') return task.mentions.length > 0;
       for (var m = 0; m < task.mentions.length; m++) {
         if (task.mentions[m].toLowerCase() === mentionVal ||
             task.mentions[m].toLowerCase().startsWith(mentionVal)) return true;
