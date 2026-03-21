@@ -710,7 +710,7 @@ function attachAllEventListeners() {
   var searchInput = document.querySelector('.tz-search-input');
   if (searchInput) {
     currentQuery = searchInput.value || 'open';
-    originalQuery = currentQuery;
+    originalQuery = searchInput.dataset.originalQuery || currentQuery;
   }
 
   var activeFilter = document.querySelector('.tz-filter-item.active');

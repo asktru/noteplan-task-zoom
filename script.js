@@ -982,7 +982,7 @@ function buildFilterSidebar(savedFilters, activeFilterId) {
   return html;
 }
 
-function buildMainContent(tasks, groupBy, activeQuery, totalScanned) {
+function buildMainContent(tasks, groupBy, activeQuery, filterOriginalQuery, totalScanned) {
   var html = '<div class="tz-main">';
 
   // Header with search bar
@@ -990,7 +990,7 @@ function buildMainContent(tasks, groupBy, activeQuery, totalScanned) {
   html += '<button class="tz-sidebar-toggle" data-action="toggleSidebar"><i class="fa-solid fa-bars"></i></button>';
   html += '<div class="tz-search-wrap">';
   html += '<i class="fa-solid fa-magnifying-glass tz-search-icon"></i>';
-  html += '<input class="tz-search-input" type="text" placeholder="Filter: #tag, @mention, p1-p3, today, folder:Name, open|done..." value="' + esc(activeQuery) + '">';
+  html += '<input class="tz-search-input" type="text" placeholder="Filter: #tag, @mention, p1-p3, today, folder:Name, open|done..." value="' + esc(activeQuery) + '" data-original-query="' + esc(filterOriginalQuery) + '">';
   html += '<button class="tz-search-clear" data-tooltip="Clear"><i class="fa-solid fa-xmark"></i></button>';
   html += '</div>';
   html += '<div class="tz-save-area" style="display:none;">';
@@ -1164,11 +1164,26 @@ function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
     }
   }
 
+  // Determine the filter's stored query (to detect user edits in the UI)
+  var builtinQueries = {
+    '__overdue': 'open overdue', '__high': 'open p1 | open p2 | open p3',
+    '__today': 'open today', '__thisweek': 'open this week',
+    '__nodate': 'open no date', '__all': 'open',
+  };
+  var filterOriginalQuery = activeQuery;
+  if (activeFilterId && builtinQueries[activeFilterId]) {
+    filterOriginalQuery = builtinQueries[activeFilterId];
+  } else if (activeFilterId) {
+    for (var fj = 0; fj < config.savedFilters.length; fj++) {
+      if (config.savedFilters[fj].id === activeFilterId) { filterOriginalQuery = config.savedFilters[fj].query; break; }
+    }
+  }
+
   var html = '<script>var allMentions = ' + JSON.stringify(allMentionsList) + ';<\/script>\n';
   html += '<div class="tz-layout">';
   html += buildFilterSidebar(config.savedFilters, activeFilterId);
   html += '<div class="tz-sidebar-backdrop"></div>';
-  html += buildMainContent(filteredTasks, groupBy, activeQuery, totalScanned);
+  html += buildMainContent(filteredTasks, groupBy, activeQuery, filterOriginalQuery, totalScanned);
   html += '</div>';
   return html;
 }
