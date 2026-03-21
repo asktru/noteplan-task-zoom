@@ -395,7 +395,7 @@ function scanAllTasks() {
  *   - Free text: matches task content (case insensitive)
  *   - #tag: matches tasks with that tag
  *   - @mention: matches tasks with that mention
- *   - p1, p2, p3: priority filters (p1=low, p2=medium, p3=high)
+ *   - p1, p2, p3: priority filters (p1=highest/!!!, p2=medium/!!, p3=lowest/!)
  *   - open, done, cancelled: status filters
  *   - today, tomorrow, yesterday: scheduled date filters
  *   - this week, next week, this month, next month: date range filters
@@ -483,9 +483,9 @@ function tokenize(str) {
     if (rest.startsWith('has date')) { tokens.push({ type: 'FILTER', filterType: 'hasDate', value: true }); i = wstart + 8; continue; }
 
     // Priority shortcuts
-    if (lw === 'p1') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 1 }); continue; }
-    if (lw === 'p2') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 2 }); continue; }
-    if (lw === 'p3') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 3 }); continue; }
+    if (lw === 'p1') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 3 }); continue; } // p1 = !!! (highest)
+    if (lw === 'p2') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 2 }); continue; } // p2 = !!
+    if (lw === 'p3') { tokens.push({ type: 'FILTER', filterType: 'priority', value: 1 }); continue; } // p3 = ! (lowest)
 
     // Status keywords
     if (lw === 'open') { tokens.push({ type: 'FILTER', filterType: 'status', value: 'open' }); continue; }
@@ -747,9 +747,8 @@ function groupTasks(tasks, groupBy) {
   // Sort groups
   groupOrder.sort(function(a, b) {
     if (groupBy === 'priority') {
-      var pa = a === 'No priority' ? 0 : parseInt(a.replace(/[^0-9]/g, ''), 10);
-      var pb = b === 'No priority' ? 0 : parseInt(b.replace(/[^0-9]/g, ''), 10);
-      return pb - pa;
+      var priOrder = { 'Highest Priority': 3, 'High Priority': 2, 'Priority': 1, 'No priority': 0 };
+      return (priOrder[b] || 0) - (priOrder[a] || 0);
     }
     if (groupBy === 'status') {
       var statusOrder = { 'Open': 0, 'Done': 1, 'Cancelled': 2 };
@@ -800,7 +799,9 @@ function getGroupKeys(task, groupBy) {
     }
     case 'priority':
       if (task.priority === 0) return ['No priority'];
-      return ['Priority ' + task.priority + ' ' + Array(task.priority + 1).join('!')];
+      if (task.priority === 3) return ['Highest Priority'];
+      if (task.priority === 2) return ['High Priority'];
+      return ['Priority'];
     case 'none':
       return ['All tasks'];
     default:
@@ -885,7 +886,7 @@ function buildFilterSidebar(savedFilters, activeFilterId) {
   html += '<div class="tz-filter-group-label">Quick Filters</div>';
   var builtins = [
     { id: '__overdue', icon: 'fa-solid fa-clock', label: 'Overdue', query: 'open overdue' },
-    { id: '__high', icon: 'fa-solid fa-exclamation', label: 'High Priority', query: 'open p3' },
+    { id: '__high', icon: 'fa-solid fa-exclamation', label: 'Priority', query: 'open p1 | open p2 | open p3' },
     { id: '__today', icon: 'fa-regular fa-calendar', label: 'Today', query: 'open today' },
     { id: '__thisweek', icon: 'fa-solid fa-calendar-week', label: 'This Week', query: 'open this week' },
     { id: '__nodate', icon: 'fa-solid fa-calendar-xmark', label: 'No Date', query: 'open no date' },
@@ -935,7 +936,6 @@ function buildMainContent(tasks, groupBy, activeQuery, totalScanned) {
   html += '</div>';
   html += '<div class="tz-header-actions">';
   html += '<button class="tz-btn" data-action="saveFilter" data-tooltip="Save current filter"><i class="fa-solid fa-bookmark"></i> Save</button>';
-  html += '<button class="tz-btn" data-action="refresh" data-tooltip="Refresh"><i class="fa-solid fa-arrows-rotate"></i></button>';
   html += '</div>';
   html += '</div>';
 
@@ -1501,12 +1501,14 @@ function getInlineCSS() {
 '\n/* ---- Tooltips ---- */\n' +
 '[data-tooltip] { position: relative; }\n' +
 '[data-tooltip]:hover::after {\n' +
-'  content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);\n' +
+'  content: attr(data-tooltip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);\n' +
 '  padding: 4px 8px; font-size: 11px; font-weight: 500;\n' +
 '  white-space: nowrap; background: var(--tz-bg-elevated); color: var(--tz-text);\n' +
 '  border: 1px solid var(--tz-border-strong); border-radius: var(--tz-radius-xs);\n' +
 '  z-index: 500; pointer-events: none;\n' +
 '}\n' +
+'/* Right-edge tooltips: align right instead of center */\n' +
+'.tz-header-actions [data-tooltip]:hover::after { left: auto; right: 0; transform: none; }\n' +
 '\n/* ---- Scrollbar ---- */\n' +
 '::-webkit-scrollbar { width: 6px; }\n' +
 '::-webkit-scrollbar-track { background: transparent; }\n' +
