@@ -883,6 +883,23 @@ function renderMarkdown(str) {
   return s;
 }
 
+function isLightTheme() {
+  try {
+    var theme = Editor.currentTheme;
+    if (!theme) return false;
+    if (theme.style === 'Light') return true;
+    if (theme.base && theme.base.backgroundColor) {
+      var bg = theme.base.backgroundColor;
+      var m = bg.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+      if (m) {
+        var lum = (parseInt(m[1], 16) * 299 + parseInt(m[2], 16) * 587 + parseInt(m[3], 16) * 114) / 1000;
+        return lum > 140;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 function getThemeCSS() {
   try {
     var theme = Editor.currentTheme;
@@ -1145,7 +1162,8 @@ function buildFullHTML(bodyContent) {
     '    <link href="../np.Shared/regular.min.flat4NP.css" rel="stylesheet">\n' +
     '    <link href="../np.Shared/solid.min.flat4NP.css" rel="stylesheet">\n';
 
-  return '<!DOCTYPE html>\n<html>\n<head>\n' +
+  var themeAttr = isLightTheme() ? 'light' : 'dark';
+  return '<!DOCTYPE html>\n<html data-theme="' + themeAttr + '">\n<head>\n' +
     '  <meta charset="utf-8">\n' +
     '  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, maximum-scale=1, viewport-fit=cover">\n' +
     '  <title>Task Zoom</title>\n' +
@@ -1165,7 +1183,8 @@ function buildFullHTML(bodyContent) {
 
 function getInlineCSS() {
   return '\n' +
-':root {\n' +
+'/* ---- Dark theme (default) ---- */\n' +
+':root, [data-theme="dark"] {\n' +
 '  --tz-bg: var(--bg-main-color, #1a1a2e);\n' +
 '  --tz-bg-card: var(--bg-alt-color, #16213e);\n' +
 '  --tz-bg-elevated: color-mix(in srgb, var(--tz-bg-card) 85%, white 15%);\n' +
@@ -1193,6 +1212,21 @@ function getInlineCSS() {
 '  --tz-radius-sm: 6px;\n' +
 '  --tz-radius-xs: 4px;\n' +
 '  --tz-sidebar-width: 200px;\n' +
+'}\n' +
+'/* ---- Light theme overrides ---- */\n' +
+'[data-theme="light"] {\n' +
+'  --tz-bg-elevated: color-mix(in srgb, var(--tz-bg-card) 92%, black 8%);\n' +
+'  --tz-text-muted: color-mix(in srgb, var(--tz-text) 60%, transparent);\n' +
+'  --tz-text-faint: color-mix(in srgb, var(--tz-text) 40%, transparent);\n' +
+'  --tz-border: color-mix(in srgb, var(--tz-text) 12%, transparent);\n' +
+'  --tz-border-strong: color-mix(in srgb, var(--tz-text) 22%, transparent);\n' +
+'  --tz-green-soft: color-mix(in srgb, #10B981 10%, white);\n' +
+'  --tz-yellow-soft: color-mix(in srgb, #F59E0B 10%, white);\n' +
+'  --tz-red-soft: color-mix(in srgb, #EF4444 10%, white);\n' +
+'  --tz-blue-soft: color-mix(in srgb, #3B82F6 10%, white);\n' +
+'  --tz-purple-soft: color-mix(in srgb, #8B5CF6 10%, white);\n' +
+'  --tz-orange-soft: color-mix(in srgb, #F97316 10%, white);\n' +
+'  --tz-accent-soft: color-mix(in srgb, var(--tz-accent) 12%, white);\n' +
 '}\n' +
 '* { box-sizing: border-box; margin: 0; padding: 0; }\n' +
 'body {\n' +
