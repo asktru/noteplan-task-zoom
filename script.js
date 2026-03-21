@@ -1043,11 +1043,18 @@ function buildMainContent(tasks, groupBy, activeQuery, filterOriginalQuery, tota
 }
 
 function buildTaskRow(task, groupBy) {
-  var cbClass = 'tz-task-cb ' + task.type;
+  var isChecklist = task.taskKind === 'checklist';
+  var cbClass = 'tz-task-cb ' + task.type + (isChecklist ? ' checklist' : '');
   var cbIcon;
-  if (task.type === 'done') cbIcon = 'fa-solid fa-circle-check';
-  else if (task.type === 'cancelled') cbIcon = 'fa-solid fa-circle-minus';
-  else cbIcon = 'fa-regular fa-circle';
+  if (isChecklist) {
+    if (task.type === 'done') cbIcon = 'fa-solid fa-square-check';
+    else if (task.type === 'cancelled') cbIcon = 'fa-solid fa-square-minus';
+    else cbIcon = 'fa-regular fa-square';
+  } else {
+    if (task.type === 'done') cbIcon = 'fa-solid fa-circle-check';
+    else if (task.type === 'cancelled') cbIcon = 'fa-solid fa-circle-minus';
+    else cbIcon = 'fa-regular fa-circle';
+  }
 
   var rowClass = 'tz-task';
   if (task.type === 'done') rowClass += ' is-done';
