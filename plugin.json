@@ -1,0 +1,94 @@
+{
+  "macOS.minVersion": "10.13.0",
+  "noteplan.minAppVersion": "3.9.0",
+  "plugin.id": "asktru.TaskZoom",
+  "plugin.name": "Task Zoom",
+  "plugin.description": "Smart task filtering with saved filters, Todoist-like query syntax, and flexible grouping.",
+  "plugin.icon": "🔍",
+  "plugin.author": "asktru",
+  "plugin.version": "1.0.0",
+  "plugin.lastUpdateInfo": "Initial release",
+  "plugin.script": "script.js",
+  "plugin.isRemote": "false",
+  "plugin.dependsOn": [
+    {
+      "id": "np.Shared",
+      "minVersion": "1.0.0"
+    }
+  ],
+  "plugin.requiredFiles": [
+    "taskZoomEvents.js"
+  ],
+  "plugin.requiredSharedFiles": [
+    "fontawesome.css",
+    "regular.min.flat4NP.css",
+    "solid.min.flat4NP.css",
+    "fa-regular-400.woff2",
+    "fa-solid-900.woff2",
+    "pluginToHTMLCommsBridge.js"
+  ],
+  "plugin.settings": [
+    {
+      "type": "heading",
+      "title": "Task Zoom Settings"
+    },
+    {
+      "key": "foldersToExclude",
+      "title": "Folders to Exclude",
+      "description": "Comma-separated list of folder names to exclude from scanning.",
+      "type": "string",
+      "default": "@Archive, @Trash, @Templates",
+      "required": false
+    },
+    {
+      "key": "savedFilters",
+      "title": "Saved Filters (JSON)",
+      "description": "JSON array of saved filter objects. Managed by the plugin UI.",
+      "type": "hidden",
+      "default": "[]",
+      "required": false
+    },
+    {
+      "key": "defaultGroupBy",
+      "title": "Default Grouping",
+      "description": "How to group tasks by default: folder, note, status, tag, mention, date, priority, none",
+      "type": "string",
+      "default": "note",
+      "required": false
+    },
+    {
+      "key": "showCompletedTasks",
+      "title": "Show Completed Tasks",
+      "description": "Whether to include completed/cancelled tasks by default.",
+      "type": "bool",
+      "default": false,
+      "required": false
+    }
+  ],
+  "plugin.commands": [
+    {
+      "name": "Task Zoom",
+      "alias": ["tz", "task zoom", "task filter"],
+      "description": "Open the Task Zoom smart filter dashboard",
+      "jsFunction": "showTaskZoom",
+      "sidebarView": {
+        "windowID": "asktru.TaskZoom.dashboard",
+        "title": "Task Zoom",
+        "icon": "magnifying-glass-plus",
+        "iconColor": "#F59E0B"
+      }
+    },
+    {
+      "name": "onMessageFromHTMLView",
+      "description": "Callback for HTML window messages",
+      "jsFunction": "onMessageFromHTMLView",
+      "hidden": true
+    },
+    {
+      "name": "Refresh Task Zoom",
+      "description": "Refresh the Task Zoom dashboard",
+      "jsFunction": "refreshTaskZoom",
+      "hidden": true
+    }
+  ]
+}
