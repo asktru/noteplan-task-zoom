@@ -705,14 +705,6 @@ function attachAllEventListeners() {
     });
   });
 
-  // Sidebar add filter button
-  var addFilterBtn = document.querySelector('.tz-sidebar-btn[data-action="addFilter"]');
-  if (addFilterBtn) {
-    addFilterBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      showSaveFilterModal();
-    });
-  }
 
   // Sidebar toggle (mobile)
   var sidebarToggle = document.querySelector('.tz-sidebar-toggle');

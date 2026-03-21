@@ -29,6 +29,29 @@ function saveFilters(filters) {
   DataStore.settings = settings;
 }
 
+function saveUserPrefs(filterId, query, groupBy) {
+  const settings = DataStore.settings || {};
+  settings.lastFilterId = filterId || '';
+  settings.lastQuery = query || '';
+  // Save groupBy per filter
+  var groupByMap = {};
+  try { groupByMap = JSON.parse(settings.filterGroupByMap || '{}'); } catch (e) { groupByMap = {}; }
+  if (filterId) groupByMap[filterId] = groupBy || 'note';
+  settings.filterGroupByMap = JSON.stringify(groupByMap);
+  DataStore.settings = settings;
+}
+
+function getUserPrefs() {
+  const settings = DataStore.settings || {};
+  var groupByMap = {};
+  try { groupByMap = JSON.parse(settings.filterGroupByMap || '{}'); } catch (e) { groupByMap = {}; }
+  return {
+    lastFilterId: settings.lastFilterId || '',
+    lastQuery: settings.lastQuery || '',
+    groupByMap: groupByMap,
+  };
+}
+
 // ============================================
 // DATE UTILITIES
 // ============================================
@@ -878,7 +901,6 @@ function buildFilterSidebar(savedFilters, activeFilterId) {
   var html = '<div class="tz-sidebar">';
   html += '<div class="tz-sidebar-header">';
   html += '<span class="tz-sidebar-title">Filters</span>';
-  html += '<button class="tz-sidebar-btn" data-action="addFilter" data-tooltip="New filter"><i class="fa-solid fa-plus"></i></button>';
   html += '</div>';
 
   // Built-in quick filters
@@ -1726,9 +1748,16 @@ async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
     await CommandBar.onAsyncThread();
 
     var config = getSettings();
-    var query = activeQuery || 'open overdue';
-    var filterId = activeFilterId || '__overdue';
-    var group = groupBy || config.defaultGroupBy || 'note';
+    var prefs = getUserPrefs();
+
+    // Restore last session state if no explicit args
+    var filterId = activeFilterId || prefs.lastFilterId || '__overdue';
+    var query = activeQuery || prefs.lastQuery || 'open overdue';
+    // Restore per-filter groupBy
+    var group = groupBy || prefs.groupByMap[filterId] || config.defaultGroupBy || 'note';
+
+    // Persist current choice
+    saveUserPrefs(filterId, query, group);
 
     var bodyContent = buildDashboardHTML(config, query, filterId, group);
     var fullHTML = buildFullHTML(bodyContent);
