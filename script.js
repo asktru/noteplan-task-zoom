@@ -993,8 +993,8 @@ function buildMainContent(tasks, groupBy, activeQuery, totalScanned) {
   html += '<input class="tz-search-input" type="text" placeholder="Filter: #tag, @mention, p1-p3, today, folder:Name, open|done..." value="' + esc(activeQuery) + '">';
   html += '<button class="tz-search-clear" data-tooltip="Clear"><i class="fa-solid fa-xmark"></i></button>';
   html += '</div>';
-  html += '<div class="tz-header-actions">';
-  html += '<button class="tz-btn" data-action="saveFilter" data-tooltip="Save current filter"><i class="fa-solid fa-bookmark"></i> Save</button>';
+  html += '<div class="tz-save-area" style="display:none;">';
+  html += '<button class="tz-btn tz-save-btn"><i class="fa-solid fa-bookmark"></i> Save</button>';
   html += '</div>';
   html += '</div>';
 
@@ -1343,6 +1343,7 @@ function getInlineCSS() {
 '}\n' +
 '.tz-search-clear:hover { background: var(--tz-border); color: var(--tz-text); }\n' +
 '.tz-header-actions { display: flex; gap: 6px; flex-shrink: 0; }\n' +
+'.tz-save-area { flex-shrink: 0; position: relative; }\n' +
 '.tz-btn {\n' +
 '  display: inline-flex; align-items: center; gap: 5px;\n' +
 '  padding: 5px 10px; font-size: 12px; font-weight: 500;\n' +
@@ -1554,6 +1555,23 @@ function getInlineCSS() {
 '  background: var(--tz-accent); color: #fff; border-color: var(--tz-accent);\n' +
 '}\n' +
 '.tz-modal-btn.primary:hover { filter: brightness(1.1); }\n' +
+'\n/* ---- Save Area & Dropdown ---- */\n' +
+'.tz-save-dropdown {\n' +
+'  position: absolute; top: 100%; right: 0; z-index: 200;\n' +
+'  min-width: 180px; padding: 4px;\n' +
+'  background: var(--tz-bg-card); border: 1px solid var(--tz-border-strong);\n' +
+'  border-radius: var(--tz-radius-sm); margin-top: 4px;\n' +
+'  box-shadow: 0 8px 24px color-mix(in srgb, black 25%, transparent);\n' +
+'}\n' +
+'.tz-save-dropdown-opt {\n' +
+'  display: flex; align-items: center; gap: 8px; width: 100%;\n' +
+'  padding: 7px 10px; font-size: 12px; font-weight: 500;\n' +
+'  color: var(--tz-text); background: transparent;\n' +
+'  border: none; border-radius: var(--tz-radius-xs);\n' +
+'  cursor: pointer; text-align: left; white-space: nowrap;\n' +
+'}\n' +
+'.tz-save-dropdown-opt:hover { background: var(--tz-border); }\n' +
+'.tz-save-dropdown-opt i { color: var(--tz-text-muted); font-size: 11px; width: 14px; text-align: center; }\n' +
 '\n/* ---- Empty State ---- */\n' +
 '.tz-empty {\n' +
 '  display: flex; flex-direction: column; align-items: center;\n' +
@@ -1584,7 +1602,7 @@ function getInlineCSS() {
 '  z-index: 500; pointer-events: none;\n' +
 '}\n' +
 '/* Right-edge tooltips: align right instead of center */\n' +
-'.tz-header-actions [data-tooltip]:hover::after { left: auto; right: 0; transform: none; }\n' +
+'.tz-save-area [data-tooltip]:hover::after { left: auto; right: 0; transform: none; }\n' +
 '\n/* ---- Scrollbar ---- */\n' +
 '::-webkit-scrollbar { width: 6px; }\n' +
 '::-webkit-scrollbar-track { background: transparent; }\n' +
@@ -1629,7 +1647,7 @@ function getInlineCSS() {
 '  .tz-header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }\n' +
 '  .tz-search-wrap { min-width: 0; order: 2; flex-basis: 100%; height: 36px; }\n' +
 '  .tz-sidebar-toggle { order: 0; }\n' +
-'  .tz-header-actions { order: 1; margin-left: auto; }\n' +
+'  .tz-save-area { order: 1; margin-left: auto; }\n' +
 '  .tz-toolbar { padding: 6px 10px; gap: 2px; }\n' +
 '  .tz-group-btn { padding: 4px 7px; font-size: 10px; }\n' +
 '  .tz-toolbar-label { font-size: 10px; }\n' +
@@ -1941,6 +1959,20 @@ async function onMessageFromHTMLView(actionType, data) {
         cfg1.savedFilters.push(newFilter);
         saveFilters(cfg1.savedFilters);
         await showTaskZoom(parsedData.query, newFilter.id, parsedData.groupBy);
+        break;
+      }
+
+      case 'updateFilter': {
+        var cfgUpd = getSettings();
+        for (var ui = 0; ui < cfgUpd.savedFilters.length; ui++) {
+          if (cfgUpd.savedFilters[ui].id === parsedData.filterId) {
+            cfgUpd.savedFilters[ui].query = parsedData.query;
+            break;
+          }
+        }
+        saveFilters(cfgUpd.savedFilters);
+        sendToHTMLWindow('SHOW_TOAST', { message: 'Filter updated' });
+        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy);
         break;
       }
 

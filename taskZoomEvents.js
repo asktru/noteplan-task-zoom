@@ -12,6 +12,7 @@
 var currentQuery = '';
 var currentFilterId = '__all';
 var currentGroupBy = 'note';
+var originalQuery = ''; // tracks the query as loaded from the filter, to detect edits
 
 // ============================================
 // DATE HELPERS (client-side)
@@ -127,7 +128,8 @@ function handleSearchSubmit() {
   var input = document.querySelector('.tz-search-input');
   if (!input) return;
   currentQuery = input.value.trim();
-  currentFilterId = '';
+  // If query changed from the original, we're in "edited" mode but keep the filter context
+  updateSaveButtonVisibility();
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -140,6 +142,8 @@ function handleSearchClear() {
   if (input) input.value = '';
   currentQuery = 'open overdue';
   currentFilterId = '__overdue';
+  originalQuery = currentQuery;
+  updateSaveButtonVisibility();
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -150,7 +154,9 @@ function handleSearchClear() {
 function handleFilterClick(filterItem) {
   currentQuery = filterItem.dataset.query || 'open';
   currentFilterId = filterItem.dataset.filterId || '';
+  originalQuery = currentQuery;
   closeMobileSidebar();
+  updateSaveButtonVisibility();
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -185,15 +191,77 @@ function handleFilterDelete(deleteBtn) {
 // SAVE FILTER MODAL
 // ============================================
 
-function showSaveFilterModal() {
+function updateSaveButtonVisibility() {
+  var saveArea = document.querySelector('.tz-save-area');
+  if (!saveArea) return;
+  var input = document.querySelector('.tz-search-input');
+  var currentVal = input ? input.value.trim() : currentQuery;
+  var queryChanged = currentVal !== originalQuery && currentVal !== '';
+  saveArea.style.display = queryChanged ? 'flex' : 'none';
+}
+
+function isSavedFilter(filterId) {
+  return filterId && filterId.startsWith('f_');
+}
+
+function showSaveDropdown() {
+  closeAllPickers();
+  var saveBtn = document.querySelector('.tz-save-btn');
+  if (!saveBtn) return;
   var input = document.querySelector('.tz-search-input');
   var query = input ? input.value.trim() : currentQuery;
-  if (!query) {
-    showToast('Enter a filter query first');
+  if (!query) return;
+
+  // If not editing a saved filter, go straight to "Save as new"
+  if (!isSavedFilter(currentFilterId)) {
+    showSaveAsNewModal(query);
     return;
   }
 
-  // Create modal overlay
+  // Show dropdown with two options
+  var dropdown = document.createElement('div');
+  dropdown.className = 'tz-save-dropdown';
+
+  var updateOpt = document.createElement('button');
+  updateOpt.className = 'tz-save-dropdown-opt';
+  updateOpt.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save changes';
+  updateOpt.addEventListener('click', function(e) {
+    e.stopPropagation();
+    sendMessageToPlugin('updateFilter', {
+      filterId: currentFilterId,
+      query: query,
+      groupBy: currentGroupBy,
+    });
+    originalQuery = query;
+    updateSaveButtonVisibility();
+    dropdown.remove();
+  });
+  dropdown.appendChild(updateOpt);
+
+  var newOpt = document.createElement('button');
+  newOpt.className = 'tz-save-dropdown-opt';
+  newOpt.innerHTML = '<i class="fa-solid fa-plus"></i> Save as new filter';
+  newOpt.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdown.remove();
+    showSaveAsNewModal(query);
+  });
+  dropdown.appendChild(newOpt);
+
+  // Position relative to save button
+  saveBtn.parentElement.style.position = 'relative';
+  saveBtn.parentElement.appendChild(dropdown);
+
+  // Close on outside click
+  setTimeout(function() {
+    document.addEventListener('click', function closeDropdown() {
+      dropdown.remove();
+      document.removeEventListener('click', closeDropdown);
+    }, { once: true });
+  }, 10);
+}
+
+function showSaveAsNewModal(query) {
   var overlay = document.createElement('div');
   overlay.className = 'tz-modal-overlay';
 
@@ -202,7 +270,7 @@ function showSaveFilterModal() {
 
   var title = document.createElement('div');
   title.className = 'tz-modal-title';
-  title.textContent = 'Save Filter';
+  title.textContent = 'Save as New Filter';
   modal.appendChild(title);
 
   var nameInput = document.createElement('input');
@@ -248,18 +316,15 @@ function showSaveFilterModal() {
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  // Close on overlay click
   overlay.addEventListener('click', function(e) {
     if (e.target === overlay) overlay.remove();
   });
 
-  // Enter to save
   nameInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') saveBtn.click();
     if (e.key === 'Escape') overlay.remove();
   });
 
-  // Focus the input
   setTimeout(function() { nameInput.focus(); }, 50);
 }
 
@@ -645,6 +710,7 @@ function attachAllEventListeners() {
   var searchInput = document.querySelector('.tz-search-input');
   if (searchInput) {
     currentQuery = searchInput.value || 'open';
+    originalQuery = currentQuery;
   }
 
   var activeFilter = document.querySelector('.tz-filter-item.active');
@@ -652,18 +718,24 @@ function attachAllEventListeners() {
     currentFilterId = activeFilter.dataset.filterId || '__all';
   }
 
+  // Hide save button initially (shown only when query is edited)
+  updateSaveButtonVisibility();
+
   var activeGroup = document.querySelector('.tz-group-btn.active');
   if (activeGroup) {
     currentGroupBy = activeGroup.dataset.group || 'note';
   }
 
-  // Search input — Enter to submit
+  // Search input — Enter to submit, input to track changes
   if (searchInput) {
     searchInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
         handleSearchSubmit();
       }
+    });
+    searchInput.addEventListener('input', function() {
+      updateSaveButtonVisibility();
     });
   }
 
@@ -696,18 +768,14 @@ function attachAllEventListeners() {
     });
   });
 
-  // Header action buttons
-  document.querySelectorAll('.tz-header-actions .tz-btn').forEach(function(btn) {
-    btn.addEventListener('click', function(e) {
+  // Save button
+  var saveBtnEl = document.querySelector('.tz-save-btn');
+  if (saveBtnEl) {
+    saveBtnEl.addEventListener('click', function(e) {
       e.stopPropagation();
-      var action = btn.dataset.action;
-      if (action === 'saveFilter') {
-        showSaveFilterModal();
-      } else if (action === 'refresh') {
-        triggerRefresh();
-      }
+      showSaveDropdown();
     });
-  });
+  }
 
 
   // Sidebar toggle (mobile)
