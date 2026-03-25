@@ -1753,10 +1753,10 @@ priCSS('tz-task-pri') +
 '    flex-wrap: wrap; gap: 4px; padding: 8px 6px;\n' +
 '  }\n' +
 '  .tz-task-content {\n' +
-'    flex: 1 1 0; min-width: calc(100% - 28px);\n' +
+'    flex: 1 1 0; min-width: 0; width: 0;\n' +
 '  }\n' +
 '  .tz-task-meta {\n' +
-'    padding-left: 24px; margin-top: 2px;\n' +
+'    flex-basis: 100%; padding-left: 24px; margin-top: 2px;\n' +
 '  }\n' +
 '  .tz-task-acts {\n' +
 '    display: flex; flex-shrink: 0; margin-left: auto;\n' +
