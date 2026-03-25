@@ -858,9 +858,9 @@ function renderMarkdown(str) {
 
   // Wiki links: [[Note Name]] → clickable link to open in NotePlan split view
   s = s.replace(/\[\[([^\]]+)\]\]/g, function(match, noteName) {
-    var encoded = encodeURIComponent(noteName.replace(/\.md$/, '') + '.md');
-    var url = 'noteplan://x-callback-url/openNote?filename=' + encoded + '&amp;reuseSplitView=yes&amp;splitView=yes';
-    return '<a class="tz-md-link tz-wiki-link" href="' + url + '" title="' + noteName.replace(/"/g, '&amp;quot;') + '">&#x1F517; ' + noteName + '</a>';
+    var encoded = encodeURIComponent(noteName);
+    var url = 'noteplan://x-callback-url/openNote?noteTitle=' + encoded + '&amp;splitView=yes';
+    return '<a class="tz-md-link tz-wiki-link" href="' + url + '" title="' + noteName.replace(/"/g, '&amp;quot;') + '">' + noteName + '</a>';
   });
 
   // Links: [text](url) — must come before bold/italic to avoid conflicts
