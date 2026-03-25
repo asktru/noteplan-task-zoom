@@ -1929,7 +1929,9 @@ async function onMessageFromHTMLView(actionType, data) {
         var result1 = toggleTaskComplete(fn1, parsedData.lineIndex);
         if (result1) {
           // Normalize checklist types for the UI
-          var uiType1 = result1.newType;
+          var rawType1 = result1.newType;
+          var isCL1 = rawType1 === 'checklistDone' || rawType1 === 'checklist' || rawType1 === 'checklistCancelled';
+          var uiType1 = rawType1;
           if (uiType1 === 'checklistDone') uiType1 = 'done';
           else if (uiType1 === 'checklist') uiType1 = 'open';
           else if (uiType1 === 'checklistCancelled') uiType1 = 'cancelled';
@@ -1937,6 +1939,7 @@ async function onMessageFromHTMLView(actionType, data) {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result1.lineIndex,
             newType: uiType1,
+            isChecklist: isCL1,
           });
         }
         break;
@@ -1946,7 +1949,9 @@ async function onMessageFromHTMLView(actionType, data) {
         var fn2 = decSafe(parsedData.encodedFilename);
         var result2 = toggleTaskCancel(fn2, parsedData.lineIndex);
         if (result2) {
-          var uiType2 = result2.newType;
+          var rawType2 = result2.newType;
+          var isCL2 = rawType2 === 'checklistDone' || rawType2 === 'checklist' || rawType2 === 'checklistCancelled';
+          var uiType2 = rawType2;
           if (uiType2 === 'checklistDone') uiType2 = 'done';
           else if (uiType2 === 'checklist') uiType2 = 'open';
           else if (uiType2 === 'checklistCancelled') uiType2 = 'cancelled';
@@ -1954,6 +1959,7 @@ async function onMessageFromHTMLView(actionType, data) {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result2.lineIndex,
             newType: uiType2,
+            isChecklist: isCL2,
           });
         }
         break;

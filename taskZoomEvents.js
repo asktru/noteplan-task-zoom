@@ -87,15 +87,22 @@ function handleTaskUpdated(data) {
   if (data.newType === 'done') taskEl.classList.add('is-done');
   if (data.newType === 'cancelled') taskEl.classList.add('is-cancelled');
 
-  // Update checkbox icon
+  // Update checkbox icon (preserve checklist vs task distinction)
   var cb = taskEl.querySelector('.tz-task-cb');
   if (cb) {
-    cb.className = 'tz-task-cb ' + data.newType;
+    var isCL = data.isChecklist || cb.classList.contains('checklist');
+    cb.className = 'tz-task-cb ' + data.newType + (isCL ? ' checklist' : '');
     var icon = cb.querySelector('i');
     if (icon) {
-      if (data.newType === 'done') icon.className = 'fa-solid fa-circle-check';
-      else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-circle-minus';
-      else icon.className = 'fa-regular fa-circle';
+      if (isCL) {
+        if (data.newType === 'done') icon.className = 'fa-solid fa-square-check';
+        else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-square-minus';
+        else icon.className = 'fa-regular fa-square';
+      } else {
+        if (data.newType === 'done') icon.className = 'fa-solid fa-circle-check';
+        else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-circle-minus';
+        else icon.className = 'fa-regular fa-circle';
+      }
     }
   }
 
