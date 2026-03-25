@@ -1459,9 +1459,9 @@ function getInlineCSS() {
 '  font-size: 9px; font-weight: 800; flex-shrink: 0; cursor: pointer;\n' +
 '  margin-top: 2px; transition: all 0.15s ease;\n' +
 '}\n' +
-'.tz-task-pri.p1 { background: var(--tz-yellow-soft); color: var(--tz-yellow); }\n' +
-'.tz-task-pri.p2 { background: var(--tz-orange-soft); color: var(--tz-orange); }\n' +
-'.tz-task-pri.p3 { background: var(--tz-red-soft); color: var(--tz-red); }\n' +
+'.tz-task-pri.p3 { background: rgba(255,85,85,0.27); color: #FFB5B5; }\n' +
+'.tz-task-pri.p2 { background: rgba(255,85,85,0.47); color: #FFCCCC; }\n' +
+'.tz-task-pri.p1 { background: rgba(255,85,85,0.67); color: #FFDBBE; }\n' +
 '\n/* ---- Task Meta Badges ---- */\n' +
 '.tz-task-meta {\n' +
 '  display: flex; align-items: center; gap: 4px; flex-shrink: 0;\n' +
