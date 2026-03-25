@@ -1759,11 +1759,17 @@ function toggleTaskComplete(filename, lineIndex) {
   var para = note.paragraphs[lineIndex];
   if (!para) return null;
 
-  if (para.type === 'done') {
-    para.type = 'open';
+  // Detect if this is a checklist item from rawContent (+ marker)
+  var rawLine = (para.rawContent || '').trimStart();
+  var isChecklist = rawLine.startsWith('+');
+
+  if (para.type === 'done' || para.type === 'checklistDone') {
+    // Restore to the correct open type
+    para.type = isChecklist ? 'checklist' : 'open';
     para.content = (para.content || '').replace(/\s*@done\([^)]*\)/, '');
   } else {
-    para.type = 'done';
+    // Complete — use checklistDone for checklists, done for tasks
+    para.type = isChecklist ? 'checklistDone' : 'done';
   }
   note.updateParagraph(para);
   return { lineIndex: lineIndex, newType: para.type };
@@ -1775,10 +1781,14 @@ function toggleTaskCancel(filename, lineIndex) {
   var para = note.paragraphs[lineIndex];
   if (!para) return null;
 
-  if (para.type === 'cancelled') {
-    para.type = 'open';
+  // Detect if this is a checklist item from rawContent (+ marker)
+  var rawLine = (para.rawContent || '').trimStart();
+  var isChecklist = rawLine.startsWith('+');
+
+  if (para.type === 'cancelled' || para.type === 'checklistCancelled') {
+    para.type = isChecklist ? 'checklist' : 'open';
   } else {
-    para.type = 'cancelled';
+    para.type = isChecklist ? 'checklistCancelled' : 'cancelled';
   }
   note.updateParagraph(para);
   return { lineIndex: lineIndex, newType: para.type };
@@ -1918,10 +1928,15 @@ async function onMessageFromHTMLView(actionType, data) {
         var fn1 = decSafe(parsedData.encodedFilename);
         var result1 = toggleTaskComplete(fn1, parsedData.lineIndex);
         if (result1) {
+          // Normalize checklist types for the UI
+          var uiType1 = result1.newType;
+          if (uiType1 === 'checklistDone') uiType1 = 'done';
+          else if (uiType1 === 'checklist') uiType1 = 'open';
+          else if (uiType1 === 'checklistCancelled') uiType1 = 'cancelled';
           await sendToHTMLWindow(WINDOW_ID, 'TASK_UPDATED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result1.lineIndex,
-            newType: result1.newType,
+            newType: uiType1,
           });
         }
         break;
@@ -1931,10 +1946,14 @@ async function onMessageFromHTMLView(actionType, data) {
         var fn2 = decSafe(parsedData.encodedFilename);
         var result2 = toggleTaskCancel(fn2, parsedData.lineIndex);
         if (result2) {
+          var uiType2 = result2.newType;
+          if (uiType2 === 'checklistDone') uiType2 = 'done';
+          else if (uiType2 === 'checklist') uiType2 = 'open';
+          else if (uiType2 === 'checklistCancelled') uiType2 = 'cancelled';
           await sendToHTMLWindow(WINDOW_ID, 'TASK_UPDATED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result2.lineIndex,
-            newType: result2.newType,
+            newType: uiType2,
           });
         }
         break;
