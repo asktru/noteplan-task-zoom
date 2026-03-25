@@ -1270,21 +1270,21 @@ function getThemePriorityColors() {
   try {
     if (typeof Editor === 'undefined' || !Editor.currentTheme || !Editor.currentTheme.values) return defaults;
     var styles = Editor.currentTheme.values.styles || {};
-    var f1 = styles['flagged-1']; // !!! highest
+    var f1 = styles['flagged-1']; // ! (one mark, lowest)
     var f2 = styles['flagged-2']; // !!
-    var f3 = styles['flagged-3']; // ! lowest
+    var f3 = styles['flagged-3']; // !!! (three marks, highest)
     return {
-      pri3: {
-        bg: (f1 && f1.backgroundColor) ? npColorToCSS(f1.backgroundColor) || defaults.pri3.bg : defaults.pri3.bg,
-        color: (f1 && f1.color) ? npColorToCSS(f1.color) || defaults.pri3.color : defaults.pri3.color,
+      pri1: {
+        bg: (f1 && f1.backgroundColor) ? npColorToCSS(f1.backgroundColor) || defaults.pri1.bg : defaults.pri1.bg,
+        color: (f1 && f1.color) ? npColorToCSS(f1.color) || defaults.pri1.color : defaults.pri1.color,
       },
       pri2: {
         bg: (f2 && f2.backgroundColor) ? npColorToCSS(f2.backgroundColor) || defaults.pri2.bg : defaults.pri2.bg,
         color: (f2 && f2.color) ? npColorToCSS(f2.color) || defaults.pri2.color : defaults.pri2.color,
       },
-      pri1: {
-        bg: (f3 && f3.backgroundColor) ? npColorToCSS(f3.backgroundColor) || defaults.pri1.bg : defaults.pri1.bg,
-        color: (f3 && f3.color) ? npColorToCSS(f3.color) || defaults.pri1.color : defaults.pri1.color,
+      pri3: {
+        bg: (f3 && f3.backgroundColor) ? npColorToCSS(f3.backgroundColor) || defaults.pri3.bg : defaults.pri3.bg,
+        color: (f3 && f3.color) ? npColorToCSS(f3.color) || defaults.pri3.color : defaults.pri3.color,
       },
     };
   } catch (e) {
