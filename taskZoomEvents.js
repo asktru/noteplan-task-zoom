@@ -79,29 +79,34 @@ function onMessageFromPlugin(type, data) {
 // ============================================
 
 function handleTaskUpdated(data) {
-  var taskEl = document.querySelector('.tz-task[data-encoded-filename="' + data.encodedFilename + '"][data-line-index="' + data.lineIndex + '"]');
-  if (!taskEl) return;
+  // Find ALL instances of this task (same task can appear in multiple groups)
+  var taskEls = document.querySelectorAll('.tz-task[data-encoded-filename="' + data.encodedFilename + '"][data-line-index="' + data.lineIndex + '"]');
+  if (taskEls.length === 0) return;
 
-  // Update classes
-  taskEl.classList.remove('is-done', 'is-cancelled');
-  if (data.newType === 'done') taskEl.classList.add('is-done');
-  if (data.newType === 'cancelled') taskEl.classList.add('is-cancelled');
+  for (var t = 0; t < taskEls.length; t++) {
+    var taskEl = taskEls[t];
 
-  // Update checkbox icon (preserve checklist vs task distinction)
-  var cb = taskEl.querySelector('.tz-task-cb');
-  if (cb) {
-    var isCL = data.isChecklist || cb.classList.contains('checklist');
-    cb.className = 'tz-task-cb ' + data.newType + (isCL ? ' checklist' : '');
-    var icon = cb.querySelector('i');
-    if (icon) {
-      if (isCL) {
-        if (data.newType === 'done') icon.className = 'fa-solid fa-square-check';
-        else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-square-minus';
-        else icon.className = 'fa-regular fa-square';
-      } else {
-        if (data.newType === 'done') icon.className = 'fa-solid fa-circle-check';
-        else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-circle-minus';
-        else icon.className = 'fa-regular fa-circle';
+    // Update classes
+    taskEl.classList.remove('is-done', 'is-cancelled');
+    if (data.newType === 'done') taskEl.classList.add('is-done');
+    if (data.newType === 'cancelled') taskEl.classList.add('is-cancelled');
+
+    // Update checkbox icon (preserve checklist vs task distinction)
+    var cb = taskEl.querySelector('.tz-task-cb');
+    if (cb) {
+      var isCL = data.isChecklist || cb.classList.contains('checklist');
+      cb.className = 'tz-task-cb ' + data.newType + (isCL ? ' checklist' : '');
+      var icon = cb.querySelector('i');
+      if (icon) {
+        if (isCL) {
+          if (data.newType === 'done') icon.className = 'fa-solid fa-square-check';
+          else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-square-minus';
+          else icon.className = 'fa-regular fa-square';
+        } else {
+          if (data.newType === 'done') icon.className = 'fa-solid fa-circle-check';
+          else if (data.newType === 'cancelled') icon.className = 'fa-solid fa-circle-minus';
+          else icon.className = 'fa-regular fa-circle';
+        }
       }
     }
   }
