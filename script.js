@@ -2017,8 +2017,62 @@ async function onMessageFromHTMLView(actionType, data) {
 
     switch (actionType) {
       case 'runFilter': {
-        // Re-render the dashboard with a new query
-        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy);
+        var rfConfig = getSettings();
+        var rfFilterId = parsedData.filterId || '__overdue';
+        var rfQuery = parsedData.query || 'open overdue';
+        var rfPrefs = getUserPrefs();
+        var rfGroup = parsedData.groupBy || rfPrefs.groupByMap[rfFilterId] || rfConfig.defaultGroupBy || 'note';
+
+        saveUserPrefs(rfFilterId, rfQuery, rfGroup);
+
+        // Build only the main content (tasks + toolbar), not the full page
+        var rfAllTasks = getCachedTasks();
+        var rfQueryLower = (rfQuery || '').toLowerCase();
+        var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
+        var rfFilter = parseQuery(rfQuery);
+        var rfFiltered = [];
+        for (var rfi = 0; rfi < rfAllTasks.length; rfi++) {
+          if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
+          if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
+        }
+
+        var rfBuiltinQueries = {
+          '__overdue': 'open overdue', '__high': 'open p1 | open p2 | open p3',
+          '__today': 'open today', '__thisweek': 'open this week',
+          '__nodate': 'open no date', '__all': 'open',
+        };
+        var rfOrigQuery = rfBuiltinQueries[rfFilterId] || '';
+        if (!rfOrigQuery) {
+          for (var rfs = 0; rfs < rfConfig.savedFilters.length; rfs++) {
+            if (rfConfig.savedFilters[rfs].id === rfFilterId) { rfOrigQuery = rfConfig.savedFilters[rfs].query; break; }
+          }
+        }
+
+        // Build just the task groups HTML (not the full main content with header/toolbar)
+        var rfBodyHTML = '';
+        if (rfFiltered.length === 0) {
+          rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+        } else {
+          var rfGroups = groupTasks(rfFiltered, rfGroup);
+          for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
+            var rfGrp = rfGroups[rfgi];
+            rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
+            for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
+              rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
+            }
+            rfBodyHTML += '</div></div>';
+          }
+        }
+        var rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
+
+        await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
+          bodyHTML: rfBodyHTML,
+          taskCount: rfCount,
+          query: rfQuery,
+          filterId: rfFilterId,
+          groupBy: rfGroup,
+          originalQuery: rfOrigQuery,
+        });
         break;
       }
 

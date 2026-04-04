@@ -66,6 +66,9 @@ function onMessageFromPlugin(type, data) {
     case 'TASK_SCHEDULED':
       handleTaskScheduled(data);
       break;
+    case 'FILTER_RESULTS':
+      handleFilterResults(data);
+      break;
     case 'FILTER_RENAMED':
       handleFilterRenamed(data);
       break;
@@ -314,6 +317,47 @@ function showRenameModal(filterId, currentName) {
   });
 
   setTimeout(function() { nameInput.focus(); nameInput.select(); }, 50);
+}
+
+function handleFilterResults(data) {
+  // Update search bar
+  var searchInput = document.querySelector('.tz-search-input');
+  if (searchInput) {
+    searchInput.value = data.query || '';
+    searchInput.dataset.originalQuery = data.originalQuery || '';
+  }
+
+  // Update current state
+  currentQuery = data.query || '';
+  currentFilterId = data.filterId || '';
+  currentGroupBy = data.groupBy || 'note';
+  originalQuery = data.originalQuery || '';
+
+  // Update sidebar active state
+  document.querySelectorAll('.tz-filter-item').forEach(function(item) {
+    item.classList.remove('active');
+    if (item.dataset.filterId === data.filterId) item.classList.add('active');
+  });
+
+  // Update group-by buttons
+  document.querySelectorAll('.tz-group-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.group === data.groupBy);
+  });
+
+  // Update task count in toolbar
+  var countEl = document.querySelector('.tz-toolbar-count');
+  if (countEl) countEl.textContent = data.taskCount || '';
+
+  // Replace just the body content (task groups)
+  var body = document.querySelector('.tz-body');
+  if (body) {
+    var wrapper = document.createElement('div');
+    wrapper.insertAdjacentHTML('afterbegin', data.bodyHTML || '');
+    while (body.firstChild) body.removeChild(body.firstChild);
+    while (wrapper.firstChild) body.appendChild(wrapper.firstChild);
+  }
+
+  updateSaveButtonVisibility();
 }
 
 function handleFilterRenamed(data) {
