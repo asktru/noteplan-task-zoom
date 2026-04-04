@@ -2062,10 +2062,12 @@ async function onMessageFromHTMLView(actionType, data) {
           }
         }
 
-        // Check filter result cache (caches filtered tasks, not HTML — grouping is cheap)
+        // Check filter result cache
         var rfCacheKey = getFilterCacheKey(rfQuery);
         var rfFiltered;
+        var rfT1 = Date.now();
         var rfAllTasks = getCachedTasks();
+        console.log('TaskZoom runFilter: getCachedTasks took ' + (Date.now() - rfT1) + 'ms');
 
         if (globalThis._tzFilterCache[rfCacheKey]) {
           rfFiltered = globalThis._tzFilterCache[rfCacheKey];
@@ -2081,6 +2083,7 @@ async function onMessageFromHTMLView(actionType, data) {
           globalThis._tzFilterCache[rfCacheKey] = rfFiltered;
         }
 
+        console.log('TaskZoom runFilter: filter done ' + (Date.now() - rfT0) + 'ms, filtered=' + (rfFiltered ? rfFiltered.length : 0));
         // Build HTML — check HTML cache first (keyed by query+groupBy)
         var rfHtmlKey = rfQuery + '|||' + rfGroup;
         var rfBodyHTML, rfCount;
