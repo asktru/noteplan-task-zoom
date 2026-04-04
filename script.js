@@ -1830,8 +1830,11 @@ function toggleTaskComplete(filename, lineIndex) {
     para.type = isChecklist ? 'checklist' : 'open';
     para.content = (para.content || '').replace(/\s*@done\([^)]*\)/, '');
   } else {
-    // Complete — use checklistDone for checklists, done for tasks
+    // Complete — append @done(date) for Routine compatibility
     para.type = isChecklist ? 'checklistDone' : 'done';
+    var now = new Date();
+    var doneStr = '@done(' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ')';
+    para.content = (para.content || '').trimEnd() + ' ' + doneStr;
   }
   note.updateParagraph(para);
   return { lineIndex: lineIndex, newType: para.type };
