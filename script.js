@@ -2034,13 +2034,16 @@ async function onMessageFromHTMLView(actionType, data) {
 
     switch (actionType) {
       case 'runFilter': {
+        var rfT0 = Date.now();
         var rfConfig = getSettings();
         var rfFilterId = parsedData.filterId || '__overdue';
         var rfQuery = parsedData.query || 'open overdue';
         var rfPrefs = getUserPrefs();
         var rfGroup = parsedData.groupBy || rfPrefs.groupByMap[rfFilterId] || rfConfig.defaultGroupBy || 'note';
+        console.log('TaskZoom runFilter: setup ' + (Date.now() - rfT0) + 'ms');
 
         saveUserPrefs(rfFilterId, rfQuery, rfGroup);
+        console.log('TaskZoom runFilter: savePrefs ' + (Date.now() - rfT0) + 'ms');
 
         // Look up the original query for save-button detection
         var rfBuiltinQueries = {
@@ -2100,6 +2103,7 @@ async function onMessageFromHTMLView(actionType, data) {
           _htmlResultCache[rfHtmlKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
         }
 
+        console.log('TaskZoom runFilter: html ready ' + (Date.now() - rfT0) + 'ms, htmlLen=' + (rfBodyHTML || '').length);
         await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
           bodyHTML: rfBodyHTML,
           taskCount: rfCount,
@@ -2108,6 +2112,7 @@ async function onMessageFromHTMLView(actionType, data) {
           groupBy: rfGroup,
           originalQuery: rfOrigQuery,
         });
+        console.log('TaskZoom runFilter: sendToHTMLWindow done ' + (Date.now() - rfT0) + 'ms');
         break;
       }
 
