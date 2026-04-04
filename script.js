@@ -1160,7 +1160,7 @@ function truncate(str, max) {
 
 // Task cache — avoid re-scanning on every filter switch
 var _taskCache = null;
-// Filter result cache — avoid re-filtering/grouping/building HTML
+// Filter result cache — cache filtered tasks by query (grouping is cheap)
 var _filterResultCache = {};
 
 function getCachedTasks() {
@@ -1174,8 +1174,8 @@ function invalidateTaskCache() {
   _filterResultCache = {};
 }
 
-function getFilterCacheKey(query, groupBy) {
-  return (query || '') + '|||' + (groupBy || 'note');
+function getFilterCacheKey(query) {
+  return query || '';
 }
 
 function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
@@ -2045,44 +2045,41 @@ async function onMessageFromHTMLView(actionType, data) {
           }
         }
 
-        // Check filter result cache
-        var rfCacheKey = getFilterCacheKey(rfQuery, rfGroup);
-        var rfCached = _filterResultCache[rfCacheKey];
-        var rfBodyHTML, rfCount;
+        // Check filter result cache (caches filtered tasks, not HTML — grouping is cheap)
+        var rfCacheKey = getFilterCacheKey(rfQuery);
+        var rfFiltered;
+        var rfAllTasks = getCachedTasks();
 
-        if (rfCached) {
-          rfBodyHTML = rfCached.bodyHTML;
-          rfCount = rfCached.taskCount;
+        if (_filterResultCache[rfCacheKey]) {
+          rfFiltered = _filterResultCache[rfCacheKey];
         } else {
-          var rfAllTasks = getCachedTasks();
           var rfQueryLower = (rfQuery || '').toLowerCase();
           var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
           var rfFilter = parseQuery(rfQuery);
-          var rfFiltered = [];
+          rfFiltered = [];
           for (var rfi = 0; rfi < rfAllTasks.length; rfi++) {
             if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
             if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
           }
-
-          rfBodyHTML = '';
-          if (rfFiltered.length === 0) {
-            rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
-          } else {
-            var rfGroups = groupTasks(rfFiltered, rfGroup);
-            for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
-              var rfGrp = rfGroups[rfgi];
-              rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
-              for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
-                rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
-              }
-              rfBodyHTML += '</div></div>';
-            }
-          }
-          rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
-
-          // Store in cache
-          _filterResultCache[rfCacheKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
+          _filterResultCache[rfCacheKey] = rfFiltered;
         }
+
+        // Build HTML (grouping + rendering is fast)
+        var rfBodyHTML = '';
+        if (rfFiltered.length === 0) {
+          rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+        } else {
+          var rfGroups = groupTasks(rfFiltered, rfGroup);
+          for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
+            var rfGrp = rfGroups[rfgi];
+            rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
+            for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
+              rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
+            }
+            rfBodyHTML += '</div></div>';
+          }
+        }
+        var rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
 
         await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
           bodyHTML: rfBodyHTML,
