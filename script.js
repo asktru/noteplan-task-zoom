@@ -337,8 +337,8 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     var mentionRegex = /@[\w\-]+(?:\([^)]*\))?/g;
     var mm;
     while ((mm = mentionRegex.exec(content)) !== null) {
-      // Skip @done, @due, @repeat
-      if (!mm[0].startsWith('@done') && !mm[0].startsWith('@due') && !mm[0].startsWith('@repeat')) {
+      // Skip @done and @due (system metadata), but keep @repeat (useful for filtering)
+      if (!mm[0].startsWith('@done') && !mm[0].startsWith('@due')) {
         inlineMentions.push(mm[0].replace(/\([^)]*\)$/, ''));
       }
     }
