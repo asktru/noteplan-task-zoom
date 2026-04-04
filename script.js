@@ -1993,27 +1993,43 @@ async function onMessageFromHTMLView(actionType, data) {
 
       case 'toggleTaskComplete': {
         var fn1 = decSafe(parsedData.encodedFilename);
+        var myWinId = 'asktru.TaskZoom.dashboard';
+        // Check for @repeat before toggling
+        var tc1Note = findNoteByFilename(fn1);
+        var tc1Para = tc1Note ? tc1Note.paragraphs[parsedData.lineIndex] : null;
+        var tc1HasRepeat = tc1Para && (tc1Para.content || '').indexOf('@repeat') >= 0;
+        var tc1WasOpen = tc1Para && (tc1Para.type === 'open' || tc1Para.type === 'checklist');
         var result1 = toggleTaskComplete(fn1, parsedData.lineIndex);
         if (result1) {
-          // Normalize checklist types for the UI
           var rawType1 = result1.newType;
           var isCL1 = rawType1 === 'checklistDone' || rawType1 === 'checklist' || rawType1 === 'checklistCancelled';
           var uiType1 = rawType1;
           if (uiType1 === 'checklistDone') uiType1 = 'done';
           else if (uiType1 === 'checklist') uiType1 = 'open';
           else if (uiType1 === 'checklistCancelled') uiType1 = 'cancelled';
-          await sendToHTMLWindow(WINDOW_ID, 'TASK_UPDATED', {
+          await sendToHTMLWindow(myWinId, 'TASK_UPDATED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result1.lineIndex,
             newType: uiType1,
             isChecklist: isCL1,
           });
+          // Invoke Routine for repeating tasks
+          if (tc1HasRepeat && tc1WasOpen && (rawType1 === 'done' || rawType1 === 'checklistDone')) {
+            try {
+              await DataStore.invokePluginCommandByName('generate repeats', 'asktru.Routine', [fn1]);
+            } catch (e) { console.log('TaskZoom: Routine not available: ' + String(e)); }
+          }
         }
         break;
       }
 
       case 'toggleTaskCancel': {
         var fn2 = decSafe(parsedData.encodedFilename);
+        var myWinId2 = 'asktru.TaskZoom.dashboard';
+        var tc2Note = findNoteByFilename(fn2);
+        var tc2Para = tc2Note ? tc2Note.paragraphs[parsedData.lineIndex] : null;
+        var tc2HasRepeat = tc2Para && (tc2Para.content || '').indexOf('@repeat') >= 0;
+        var tc2WasOpen = tc2Para && (tc2Para.type === 'open' || tc2Para.type === 'checklist');
         var result2 = toggleTaskCancel(fn2, parsedData.lineIndex);
         if (result2) {
           var rawType2 = result2.newType;
@@ -2022,12 +2038,17 @@ async function onMessageFromHTMLView(actionType, data) {
           if (uiType2 === 'checklistDone') uiType2 = 'done';
           else if (uiType2 === 'checklist') uiType2 = 'open';
           else if (uiType2 === 'checklistCancelled') uiType2 = 'cancelled';
-          await sendToHTMLWindow(WINDOW_ID, 'TASK_UPDATED', {
+          await sendToHTMLWindow(myWinId2, 'TASK_UPDATED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result2.lineIndex,
             newType: uiType2,
             isChecklist: isCL2,
           });
+          if (tc2HasRepeat && tc2WasOpen && (rawType2 === 'cancelled' || rawType2 === 'checklistCancelled')) {
+            try {
+              await DataStore.invokePluginCommandByName('generate repeats', 'asktru.Routine', [fn2]);
+            } catch (e) { console.log('TaskZoom: Routine not available: ' + String(e)); }
+          }
         }
         break;
       }
@@ -2060,17 +2081,23 @@ async function onMessageFromHTMLView(actionType, data) {
 
       case 'openNote': {
         var fn5 = decSafe(parsedData.encodedFilename);
+        await CommandBar.onMainThread();
         if (isCalendarFilename(fn5)) {
-          // Calendar notes: use openNoteByDateString for daily notes
           var dailyM = fn5.replace(/\.(md|txt)$/, '').match(/^(\d{4})(\d{2})(\d{2})$/);
           if (dailyM) {
-            await Editor.openNoteByDateString(dailyM[1] + '-' + dailyM[2] + '-' + dailyM[3]);
+            var dateStr5 = dailyM[1] + '-' + dailyM[2] + '-' + dailyM[3];
+            NotePlan.openURL('noteplan://x-callback-url/openNote?noteDate=' + encodeURIComponent(dateStr5) + '&splitView=yes&reuseSplitView=yes');
           } else {
-            // Weekly/monthly/etc — try openNoteByFilename
             await Editor.openNoteByFilename(fn5);
           }
         } else {
-          await Editor.openNoteByFilename(fn5);
+          var note5 = findNoteByFilename(fn5);
+          var title5 = note5 ? (note5.title || '') : '';
+          if (title5) {
+            NotePlan.openURL('noteplan://x-callback-url/openNote?noteTitle=' + encodeURIComponent(title5) + '&splitView=yes&reuseSplitView=yes');
+          } else {
+            await Editor.openNoteByFilename(fn5);
+          }
         }
         break;
       }
