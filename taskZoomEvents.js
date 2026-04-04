@@ -175,7 +175,13 @@ function handleFilterClick(filterItem) {
   originalQuery = currentQuery;
   closeMobileSidebar();
   updateSaveButtonVisibility();
-  // Don't send groupBy — let the plugin restore the saved per-filter preference
+
+  // Show loading indicator on the filter item
+  document.querySelectorAll('.tz-filter-item').forEach(function(item) {
+    item.classList.remove('active', 'loading');
+  });
+  filterItem.classList.add('active', 'loading');
+
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -185,6 +191,9 @@ function handleFilterClick(filterItem) {
 
 function handleGroupByClick(btn) {
   currentGroupBy = btn.dataset.group || 'note';
+  // Show loading on the group button
+  document.querySelectorAll('.tz-group-btn').forEach(function(b) { b.classList.remove('active', 'loading'); });
+  btn.classList.add('active', 'loading');
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -333,14 +342,15 @@ function handleFilterResults(data) {
   currentGroupBy = data.groupBy || 'note';
   originalQuery = data.originalQuery || '';
 
-  // Update sidebar active state
+  // Update sidebar active state + remove loading
   document.querySelectorAll('.tz-filter-item').forEach(function(item) {
-    item.classList.remove('active');
+    item.classList.remove('active', 'loading');
     if (item.dataset.filterId === data.filterId) item.classList.add('active');
   });
 
-  // Update group-by buttons
+  // Update group-by buttons + remove loading
   document.querySelectorAll('.tz-group-btn').forEach(function(btn) {
+    btn.classList.remove('loading');
     btn.classList.toggle('active', btn.dataset.group === data.groupBy);
   });
 

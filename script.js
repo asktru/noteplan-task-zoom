@@ -1160,8 +1160,10 @@ function truncate(str, max) {
 
 // Task cache — avoid re-scanning on every filter switch
 var _taskCache = null;
-// Filter result cache — cache filtered tasks by query (grouping is cheap)
+// Filter result cache — cache filtered tasks by query
 var _filterResultCache = {};
+// HTML result cache — cache built HTML by query+groupBy
+var _htmlResultCache = {};
 
 function getCachedTasks() {
   if (_taskCache) return _taskCache;
@@ -1172,6 +1174,7 @@ function getCachedTasks() {
 function invalidateTaskCache() {
   _taskCache = null;
   _filterResultCache = {};
+  _htmlResultCache = {};
 }
 
 function getFilterCacheKey(query) {
@@ -1410,6 +1413,13 @@ function getInlineCSS() {
 '}\n' +
 '.tz-filter-item:hover { background: var(--tz-border); color: var(--tz-text); }\n' +
 '.tz-filter-item.active { background: var(--tz-accent-soft); color: var(--tz-accent); font-weight: 600; }\n' +
+'.tz-filter-item.loading::after, .tz-group-btn.loading::after {\n' +
+'  content: ""; display: inline-block; width: 10px; height: 10px;\n' +
+'  border: 2px solid var(--tz-accent); border-top-color: transparent;\n' +
+'  border-radius: 50%; animation: tzSpin 0.6s linear infinite;\n' +
+'  margin-left: 6px; vertical-align: middle;\n' +
+'}\n' +
+'@keyframes tzSpin { to { transform: rotate(360deg); } }\n' +
 '.tz-filter-item i { font-size: 11px; width: 14px; text-align: center; flex-shrink: 0; }\n' +
 '.tz-filter-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n' +
 '.tz-filter-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }\n' +
@@ -2064,22 +2074,31 @@ async function onMessageFromHTMLView(actionType, data) {
           _filterResultCache[rfCacheKey] = rfFiltered;
         }
 
-        // Build HTML (grouping + rendering is fast)
-        var rfBodyHTML = '';
-        if (rfFiltered.length === 0) {
-          rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+        // Build HTML — check HTML cache first (keyed by query+groupBy)
+        var rfHtmlKey = rfQuery + '|||' + rfGroup;
+        var rfBodyHTML, rfCount;
+
+        if (_htmlResultCache[rfHtmlKey]) {
+          rfBodyHTML = _htmlResultCache[rfHtmlKey].bodyHTML;
+          rfCount = _htmlResultCache[rfHtmlKey].taskCount;
         } else {
-          var rfGroups = groupTasks(rfFiltered, rfGroup);
-          for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
-            var rfGrp = rfGroups[rfgi];
-            rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
-            for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
-              rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
+          rfBodyHTML = '';
+          if (rfFiltered.length === 0) {
+            rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+          } else {
+            var rfGroups = groupTasks(rfFiltered, rfGroup);
+            for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
+              var rfGrp = rfGroups[rfgi];
+              rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
+              for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
+                rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
+              }
+              rfBodyHTML += '</div></div>';
             }
-            rfBodyHTML += '</div></div>';
           }
+          rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
+          _htmlResultCache[rfHtmlKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
         }
-        var rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
 
         await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
           bodyHTML: rfBodyHTML,
