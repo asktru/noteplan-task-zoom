@@ -1833,7 +1833,9 @@ function toggleTaskComplete(filename, lineIndex) {
     // Complete — append @done(date) for Routine compatibility
     para.type = isChecklist ? 'checklistDone' : 'done';
     var now = new Date();
-    var doneStr = '@done(' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ')';
+    var h = now.getHours(); var mi = String(now.getMinutes()).padStart(2, '0');
+    var ampm = h >= 12 ? 'PM' : 'AM'; var h12 = h % 12; if (h12 === 0) h12 = 12;
+    var doneStr = '@done(' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(h12).padStart(2, '0') + ':' + mi + ' ' + ampm + ')';
     para.content = (para.content || '').trimEnd() + ' ' + doneStr;
   }
   note.updateParagraph(para);
