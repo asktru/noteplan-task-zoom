@@ -174,14 +174,32 @@ function handleFilterClick(filterItem) {
   currentFilterId = filterItem.dataset.filterId || '';
   originalQuery = currentQuery;
   closeMobileSidebar();
-  updateSaveButtonVisibility();
 
-  // Show loading indicator on the filter item
+  // Update sidebar active state
   document.querySelectorAll('.tz-filter-item').forEach(function(item) {
-    item.classList.remove('active', 'loading');
+    item.classList.remove('active');
   });
-  filterItem.classList.add('active', 'loading');
+  filterItem.classList.add('active');
 
+  // Try client-side instant switch first
+  if (typeof _prebuiltFilters !== 'undefined' && _prebuiltFilters[currentFilterId]) {
+    var pf = _prebuiltFilters[currentFilterId];
+    currentQuery = pf.query;
+    originalQuery = pf.origQuery || pf.query;
+    // Use saved groupBy for this filter or fall back to current
+    var pfGroup = currentGroupBy;
+    applyPrebuiltFilter(currentFilterId, pfGroup);
+    // Save preference via plugin (fire-and-forget, no wait)
+    sendMessageToPlugin('savePrefs', JSON.stringify({
+      filterId: currentFilterId,
+      query: currentQuery,
+      groupBy: pfGroup,
+    }));
+    return;
+  }
+
+  // Fallback: ask plugin
+  filterItem.classList.add('loading');
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -191,9 +209,24 @@ function handleFilterClick(filterItem) {
 
 function handleGroupByClick(btn) {
   currentGroupBy = btn.dataset.group || 'note';
-  // Show loading on the group button
-  document.querySelectorAll('.tz-group-btn').forEach(function(b) { b.classList.remove('active', 'loading'); });
-  btn.classList.add('active', 'loading');
+
+  // Update group-by button active state
+  document.querySelectorAll('.tz-group-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+
+  // Try client-side instant switch
+  if (typeof _prebuiltFilters !== 'undefined' && _prebuiltFilters[currentFilterId]) {
+    applyPrebuiltFilter(currentFilterId, currentGroupBy);
+    sendMessageToPlugin('savePrefs', JSON.stringify({
+      filterId: currentFilterId,
+      query: currentQuery,
+      groupBy: currentGroupBy,
+    }));
+    return;
+  }
+
+  // Fallback
+  btn.classList.add('loading');
   sendMessageToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
@@ -363,6 +396,39 @@ function handleFilterResults(data) {
   if (body) {
     var wrapper = document.createElement('div');
     wrapper.insertAdjacentHTML('afterbegin', data.bodyHTML || '');
+    while (body.firstChild) body.removeChild(body.firstChild);
+    while (wrapper.firstChild) body.appendChild(wrapper.firstChild);
+  }
+
+  updateSaveButtonVisibility();
+}
+
+function applyPrebuiltFilter(filterId, groupBy) {
+  var pf = _prebuiltFilters[filterId];
+  if (!pf) return;
+  var html = pf.html[groupBy] || pf.html['note'] || '';
+
+  // Update search bar
+  var searchInput = document.querySelector('.tz-search-input');
+  if (searchInput) {
+    searchInput.value = pf.query || '';
+    searchInput.dataset.originalQuery = pf.origQuery || pf.query || '';
+  }
+
+  // Update task count
+  var countEl = document.querySelector('.tz-toolbar-count');
+  if (countEl) countEl.textContent = pf.taskCount || '';
+
+  // Update group-by buttons
+  document.querySelectorAll('.tz-group-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.group === groupBy);
+  });
+
+  // Replace body content
+  var body = document.querySelector('.tz-body');
+  if (body) {
+    var wrapper = document.createElement('div');
+    wrapper.insertAdjacentHTML('afterbegin', html);
     while (body.firstChild) body.removeChild(body.firstChild);
     while (wrapper.firstChild) body.appendChild(wrapper.firstChild);
   }

@@ -1237,7 +1237,7 @@ function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
   return html;
 }
 
-function buildFullHTML(bodyContent) {
+function buildFullHTML(bodyContent, extraScripts) {
   var themeCSS = getThemeCSS();
   var pluginCSS = getInlineCSS();
 
@@ -1256,8 +1256,9 @@ function buildFullHTML(bodyContent) {
     '</head>\n<body>\n' +
     bodyContent + '\n' +
     '  <script>\n    var receivingPluginID = \'' + PLUGIN_ID + '\';\n  <\/script>\n' +
-    '  <script type="text/javascript" src="../np.Shared/pluginToHTMLCommsBridge.js"><\/script>\n' +
+    (extraScripts || '') +
     '  <script type="text/javascript" src="taskZoomEvents.js"><\/script>\n' +
+    '  <script type="text/javascript" src="../np.Shared/pluginToHTMLCommsBridge.js"><\/script>\n' +
     '</body>\n</html>';
 }
 
@@ -1994,7 +1995,82 @@ async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
     saveUserPrefs(filterId, query, group);
 
     var bodyContent = buildDashboardHTML(config, query, filterId, group);
-    var fullHTML = buildFullHTML(bodyContent);
+
+    // Pre-build filter results for all quick filters + saved filters to enable instant client-side switching
+    var allTasks = getCachedTasks();
+    var prebuiltFilters = {};
+    var defaultGroupByMap = prefs.groupByMap || {};
+
+    var quickFilters = [
+      { id: '__overdue', query: 'open overdue' },
+      { id: '__high', query: 'open p1 | open p2 | open p3' },
+      { id: '__today', query: 'open today' },
+      { id: '__thisweek', query: 'open this week' },
+      { id: '__nodate', query: 'open no date' },
+      { id: '__all', query: 'open' },
+    ];
+    // Add saved filters
+    for (var sfi = 0; sfi < config.savedFilters.length; sfi++) {
+      quickFilters.push({ id: config.savedFilters[sfi].id, query: config.savedFilters[sfi].query });
+    }
+
+    var defaultGroupOptions = ['note', 'folder', 'status', 'tag', 'mention', 'date', 'priority', 'none'];
+
+    for (var qfi = 0; qfi < quickFilters.length; qfi++) {
+      var qf = quickFilters[qfi];
+      var qfQueryLower = qf.query.toLowerCase();
+      var qfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(qfQueryLower);
+      var qfFilter = parseQuery(qf.query);
+      var qfFiltered = [];
+      for (var qi = 0; qi < allTasks.length; qi++) {
+        if (!qfHasKind && allTasks[qi].taskKind !== 'task') continue;
+        if (evaluateFilter(allTasks[qi], qfFilter)) qfFiltered.push(allTasks[qi]);
+      }
+
+      var qfOrigQuery = qf.query;
+      prebuiltFilters[qf.id] = { filteredTasks: qfFiltered, query: qf.query, origQuery: qfOrigQuery };
+
+      // Pre-build HTML for each groupBy option
+      prebuiltFilters[qf.id].html = {};
+      for (var gi2 = 0; gi2 < defaultGroupOptions.length; gi2++) {
+        var gopt = defaultGroupOptions[gi2];
+        var gGroups = groupTasks(qfFiltered, gopt);
+        var gHTML = '';
+        if (qfFiltered.length === 0) {
+          gHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+        } else {
+          for (var ggi = 0; ggi < gGroups.length; ggi++) {
+            var gGrp = gGroups[ggi];
+            gHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(gGrp.label) + '</span><span class="tz-group-count">' + gGrp.tasks.length + '</span></div><div class="tz-task-list">';
+            for (var gti = 0; gti < gGrp.tasks.length; gti++) {
+              gHTML += buildTaskRow(gGrp.tasks[gti], gopt);
+            }
+            gHTML += '</div></div>';
+          }
+        }
+        prebuiltFilters[qf.id].html[gopt] = gHTML;
+      }
+      prebuiltFilters[qf.id].taskCount = qfFiltered.length + ' tasks / ' + allTasks.length + ' scanned';
+    }
+
+    // Embed the pre-built data as a JSON script tag
+    var prebuiltScript = '<script type="text/javascript">var _prebuiltFilters = ' + JSON.stringify(
+      // Only send the HTML strings, not the task objects (too large)
+      (function() {
+        var result = {};
+        for (var k in prebuiltFilters) {
+          result[k] = {
+            html: prebuiltFilters[k].html,
+            query: prebuiltFilters[k].query,
+            origQuery: prebuiltFilters[k].origQuery,
+            taskCount: prebuiltFilters[k].taskCount,
+          };
+        }
+        return result;
+      })()
+    ) + ';<\/script>\n';
+
+    var fullHTML = buildFullHTML(bodyContent, prebuiltScript);
 
     await CommandBar.onMainThread();
     CommandBar.showLoading(false);
@@ -2037,6 +2113,15 @@ async function onMessageFromHTMLView(actionType, data) {
     var parsedData = typeof data === 'string' ? JSON.parse(data) : data;
 
     switch (actionType) {
+      case 'savePrefs': {
+        // Fire-and-forget: just persist the user's filter/groupBy choice
+        var spData = typeof parsedData === 'string' ? JSON.parse(parsedData) : parsedData;
+        if (spData.filterId) {
+          saveUserPrefs(spData.filterId, spData.query, spData.groupBy);
+        }
+        break;
+      }
+
       case 'runFilter': {
         var rfT0 = Date.now();
         var rfConfig = getSettings();
