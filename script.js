@@ -5,8 +5,8 @@
 // CONFIGURATION
 // ============================================
 
-const PLUGIN_ID = 'asktru.TaskZoom';
-const WINDOW_ID = 'asktru.TaskZoom.dashboard';
+var PLUGIN_ID = 'asktru.TaskZoom';
+var WINDOW_ID = 'asktru.TaskZoom.dashboard';
 
 function getSettings() {
   const settings = DataStore.settings || {};
