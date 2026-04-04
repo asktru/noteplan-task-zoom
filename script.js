@@ -1160,6 +1160,8 @@ function truncate(str, max) {
 
 // Task cache — avoid re-scanning on every filter switch
 var _taskCache = null;
+// Filter result cache — avoid re-filtering/grouping/building HTML
+var _filterResultCache = {};
 
 function getCachedTasks() {
   if (_taskCache) return _taskCache;
@@ -1169,6 +1171,11 @@ function getCachedTasks() {
 
 function invalidateTaskCache() {
   _taskCache = null;
+  _filterResultCache = {};
+}
+
+function getFilterCacheKey(query, groupBy) {
+  return (query || '') + '|||' + (groupBy || 'note');
 }
 
 function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
@@ -2025,17 +2032,7 @@ async function onMessageFromHTMLView(actionType, data) {
 
         saveUserPrefs(rfFilterId, rfQuery, rfGroup);
 
-        // Build only the main content (tasks + toolbar), not the full page
-        var rfAllTasks = getCachedTasks();
-        var rfQueryLower = (rfQuery || '').toLowerCase();
-        var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
-        var rfFilter = parseQuery(rfQuery);
-        var rfFiltered = [];
-        for (var rfi = 0; rfi < rfAllTasks.length; rfi++) {
-          if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
-          if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
-        }
-
+        // Look up the original query for save-button detection
         var rfBuiltinQueries = {
           '__overdue': 'open overdue', '__high': 'open p1 | open p2 | open p3',
           '__today': 'open today', '__thisweek': 'open this week',
@@ -2048,22 +2045,44 @@ async function onMessageFromHTMLView(actionType, data) {
           }
         }
 
-        // Build just the task groups HTML (not the full main content with header/toolbar)
-        var rfBodyHTML = '';
-        if (rfFiltered.length === 0) {
-          rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+        // Check filter result cache
+        var rfCacheKey = getFilterCacheKey(rfQuery, rfGroup);
+        var rfCached = _filterResultCache[rfCacheKey];
+        var rfBodyHTML, rfCount;
+
+        if (rfCached) {
+          rfBodyHTML = rfCached.bodyHTML;
+          rfCount = rfCached.taskCount;
         } else {
-          var rfGroups = groupTasks(rfFiltered, rfGroup);
-          for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
-            var rfGrp = rfGroups[rfgi];
-            rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
-            for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
-              rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
-            }
-            rfBodyHTML += '</div></div>';
+          var rfAllTasks = getCachedTasks();
+          var rfQueryLower = (rfQuery || '').toLowerCase();
+          var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
+          var rfFilter = parseQuery(rfQuery);
+          var rfFiltered = [];
+          for (var rfi = 0; rfi < rfAllTasks.length; rfi++) {
+            if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
+            if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
           }
+
+          rfBodyHTML = '';
+          if (rfFiltered.length === 0) {
+            rfBodyHTML = '<div class="tz-empty"><div class="tz-empty-icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><div class="tz-empty-title">No tasks match this filter</div><div class="tz-empty-desc">Try adjusting your search query or filter settings.</div></div>';
+          } else {
+            var rfGroups = groupTasks(rfFiltered, rfGroup);
+            for (var rfgi = 0; rfgi < rfGroups.length; rfgi++) {
+              var rfGrp = rfGroups[rfgi];
+              rfBodyHTML += '<div class="tz-group"><div class="tz-group-header"><span class="tz-group-label">' + esc(rfGrp.label) + '</span><span class="tz-group-count">' + rfGrp.tasks.length + '</span></div><div class="tz-task-list">';
+              for (var rfti = 0; rfti < rfGrp.tasks.length; rfti++) {
+                rfBodyHTML += buildTaskRow(rfGrp.tasks[rfti], rfGroup);
+              }
+              rfBodyHTML += '</div></div>';
+            }
+          }
+          rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
+
+          // Store in cache
+          _filterResultCache[rfCacheKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
         }
-        var rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
 
         await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
           bodyHTML: rfBodyHTML,
