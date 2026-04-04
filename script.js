@@ -1159,22 +1159,21 @@ function truncate(str, max) {
 }
 
 // Task cache — avoid re-scanning on every filter switch
-var _taskCache = null;
-// Filter result cache — cache filtered tasks by query
-var _filterResultCache = {};
-// HTML result cache — cache built HTML by query+groupBy
-var _htmlResultCache = {};
+// Use globalThis to survive script reloads within the same session
+if (!globalThis._tzTaskCache) globalThis._tzTaskCache = null;
+if (!globalThis._tzFilterCache) globalThis._tzFilterCache = {};
+if (!globalThis._tzHtmlCache) globalThis._tzHtmlCache = {};
 
 function getCachedTasks() {
-  if (_taskCache) return _taskCache;
-  _taskCache = scanAllTasks();
-  return _taskCache;
+  if (globalThis._tzTaskCache) return globalThis._tzTaskCache;
+  globalThis._tzTaskCache = scanAllTasks();
+  return globalThis._tzTaskCache;
 }
 
 function invalidateTaskCache() {
-  _taskCache = null;
-  _filterResultCache = {};
-  _htmlResultCache = {};
+  globalThis._tzTaskCache = null;
+  globalThis._tzFilterCache = {};
+  globalThis._tzHtmlCache = {};
 }
 
 function getFilterCacheKey(query) {
@@ -2063,8 +2062,8 @@ async function onMessageFromHTMLView(actionType, data) {
         var rfFiltered;
         var rfAllTasks = getCachedTasks();
 
-        if (_filterResultCache[rfCacheKey]) {
-          rfFiltered = _filterResultCache[rfCacheKey];
+        if (globalThis._tzFilterCache[rfCacheKey]) {
+          rfFiltered = globalThis._tzFilterCache[rfCacheKey];
         } else {
           var rfQueryLower = (rfQuery || '').toLowerCase();
           var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
@@ -2074,16 +2073,16 @@ async function onMessageFromHTMLView(actionType, data) {
             if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
             if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
           }
-          _filterResultCache[rfCacheKey] = rfFiltered;
+          globalThis._tzFilterCache[rfCacheKey] = rfFiltered;
         }
 
         // Build HTML — check HTML cache first (keyed by query+groupBy)
         var rfHtmlKey = rfQuery + '|||' + rfGroup;
         var rfBodyHTML, rfCount;
 
-        if (_htmlResultCache[rfHtmlKey]) {
-          rfBodyHTML = _htmlResultCache[rfHtmlKey].bodyHTML;
-          rfCount = _htmlResultCache[rfHtmlKey].taskCount;
+        if (globalThis._tzHtmlCache[rfHtmlKey]) {
+          rfBodyHTML = globalThis._tzHtmlCache[rfHtmlKey].bodyHTML;
+          rfCount = globalThis._tzHtmlCache[rfHtmlKey].taskCount;
         } else {
           rfBodyHTML = '';
           if (rfFiltered.length === 0) {
@@ -2100,7 +2099,7 @@ async function onMessageFromHTMLView(actionType, data) {
             }
           }
           rfCount = rfFiltered.length + ' tasks / ' + rfAllTasks.length + ' scanned';
-          _htmlResultCache[rfHtmlKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
+          globalThis._tzHtmlCache[rfHtmlKey] = { bodyHTML: rfBodyHTML, taskCount: rfCount };
         }
 
         console.log('TaskZoom runFilter: html ready ' + (Date.now() - rfT0) + 'ms, htmlLen=' + (rfBodyHTML || '').length);
