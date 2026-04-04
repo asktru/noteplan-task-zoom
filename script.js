@@ -1160,13 +1160,18 @@ function truncate(str, max) {
 
 // Task cache — avoid re-scanning on every filter switch
 // Use globalThis to survive script reloads within the same session
-if (!globalThis._tzTaskCache) globalThis._tzTaskCache = null;
-if (!globalThis._tzFilterCache) globalThis._tzFilterCache = {};
-if (!globalThis._tzHtmlCache) globalThis._tzHtmlCache = {};
+if (globalThis._tzTaskCache === undefined) globalThis._tzTaskCache = null;
+if (globalThis._tzFilterCache === undefined) globalThis._tzFilterCache = {};
+if (globalThis._tzHtmlCache === undefined) globalThis._tzHtmlCache = {};
 
 function getCachedTasks() {
-  if (globalThis._tzTaskCache) return globalThis._tzTaskCache;
+  if (globalThis._tzTaskCache) {
+    console.log('TaskZoom: task cache HIT (' + globalThis._tzTaskCache.length + ' tasks)');
+    return globalThis._tzTaskCache;
+  }
+  console.log('TaskZoom: task cache MISS — scanning...');
   globalThis._tzTaskCache = scanAllTasks();
+  console.log('TaskZoom: scanned ' + globalThis._tzTaskCache.length + ' tasks');
   return globalThis._tzTaskCache;
 }
 
