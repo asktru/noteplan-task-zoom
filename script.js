@@ -1158,8 +1158,21 @@ function truncate(str, max) {
   return str.slice(0, max) + '\u2026';
 }
 
+// Task cache — avoid re-scanning on every filter switch
+var _taskCache = null;
+
+function getCachedTasks() {
+  if (_taskCache) return _taskCache;
+  _taskCache = scanAllTasks();
+  return _taskCache;
+}
+
+function invalidateTaskCache() {
+  _taskCache = null;
+}
+
 function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
-  var allTasks = scanAllTasks();
+  var allTasks = getCachedTasks();
   var totalScanned = allTasks.length;
 
   // Collect all unique mentions for the assign picker
@@ -1991,6 +2004,7 @@ async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
 }
 
 async function refreshTaskZoom() {
+  invalidateTaskCache();
   await showTaskZoom();
 }
 
@@ -2009,6 +2023,7 @@ async function onMessageFromHTMLView(actionType, data) {
       }
 
       case 'toggleTaskComplete': {
+        invalidateTaskCache();
         var fn1 = decSafe(parsedData.encodedFilename);
         var myWinId = 'asktru.TaskZoom.dashboard';
         // Check for @repeat before toggling
@@ -2041,6 +2056,7 @@ async function onMessageFromHTMLView(actionType, data) {
       }
 
       case 'toggleTaskCancel': {
+        invalidateTaskCache();
         var fn2 = decSafe(parsedData.encodedFilename);
         var myWinId2 = 'asktru.TaskZoom.dashboard';
         var tc2Note = findNoteByFilename(fn2);
@@ -2071,6 +2087,7 @@ async function onMessageFromHTMLView(actionType, data) {
       }
 
       case 'cycleTaskPriority': {
+        invalidateTaskCache();
         var fn3 = decSafe(parsedData.encodedFilename);
         var result3 = cycleTaskPriority(fn3, parsedData.lineIndex);
         if (result3) {
@@ -2084,6 +2101,7 @@ async function onMessageFromHTMLView(actionType, data) {
       }
 
       case 'scheduleTask': {
+        invalidateTaskCache();
         var fn4 = decSafe(parsedData.encodedFilename);
         var result4 = scheduleTask(fn4, parsedData.lineIndex, parsedData.dateStr);
         if (result4) {

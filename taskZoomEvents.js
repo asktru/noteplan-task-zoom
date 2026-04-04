@@ -213,13 +213,7 @@ function showFilterContextMenu(filterItem, x, y) {
   renameOpt.appendChild(document.createTextNode(' Rename'));
   renameOpt.addEventListener('click', function() {
     removeFilterContextMenu();
-    var newName = prompt('Rename filter:', filterName);
-    if (newName && newName.trim()) {
-      sendMessageToPlugin('renameFilter', JSON.stringify({
-        filterId: filterId,
-        newName: newName.trim(),
-      }));
-    }
+    showRenameModal(filterId, filterName);
   });
   menu.appendChild(renameOpt);
 
@@ -262,6 +256,64 @@ function removeFilterContextMenu() {
   var existing = document.getElementById('tzContextMenu');
   if (existing) existing.remove();
   document.removeEventListener('click', closeContextMenuOnOutsideClick);
+}
+
+function showRenameModal(filterId, currentName) {
+  var overlay = document.createElement('div');
+  overlay.className = 'tz-modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'tz-modal';
+
+  var title = document.createElement('div');
+  title.className = 'tz-modal-title';
+  title.textContent = 'Rename Filter';
+  modal.appendChild(title);
+
+  var nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'tz-modal-input';
+  nameInput.value = currentName;
+  nameInput.placeholder = 'Filter name...';
+  modal.appendChild(nameInput);
+
+  var actions = document.createElement('div');
+  actions.className = 'tz-modal-actions';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'tz-modal-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', function() { overlay.remove(); });
+  actions.appendChild(cancelBtn);
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'tz-modal-btn primary';
+  saveBtn.textContent = 'Rename';
+  saveBtn.addEventListener('click', function() {
+    var newName = nameInput.value.trim();
+    if (!newName) { nameInput.style.borderColor = 'var(--tz-red)'; return; }
+    sendMessageToPlugin('renameFilter', JSON.stringify({
+      filterId: filterId,
+      newName: newName,
+    }));
+    overlay.remove();
+  });
+  actions.appendChild(saveBtn);
+
+  modal.appendChild(actions);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  nameInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') saveBtn.click();
+    if (e.key === 'Escape') overlay.remove();
+  });
+
+  setTimeout(function() { nameInput.focus(); nameInput.select(); }, 50);
 }
 
 function handleFilterRenamed(data) {
@@ -838,8 +890,7 @@ function attachAllEventListeners() {
   document.querySelectorAll('.tz-filter-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
       if (item.dataset.action === 'newFilter') {
-        // Show save filter modal with empty query
-        showSaveFilterModal();
+        showSaveAsNewModal(currentQuery || 'open');
         return;
       }
       handleFilterClick(item);
