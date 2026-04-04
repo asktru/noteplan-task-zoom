@@ -981,12 +981,15 @@ function buildFilterSidebar(savedFilters, activeFilterId) {
     for (var s = 0; s < savedFilters.length; s++) {
       var sf = savedFilters[s];
       var active2 = activeFilterId === sf.id ? ' active' : '';
-      html += '<button class="tz-filter-item saved' + active2 + '" data-filter-id="' + esc(sf.id) + '" data-query="' + esc(sf.query) + '" draggable="true">';
+      html += '<button class="tz-filter-item saved' + active2 + '" data-filter-id="' + esc(sf.id) + '" data-query="' + esc(sf.query) + '" data-filter-name="' + esc(sf.name) + '" draggable="true">';
+      html += '<span class="tz-filter-name">' + esc(sf.name) + '</span>';
       html += '<i class="fa-solid fa-grip-vertical tz-drag-handle"></i>';
-      html += '<span>' + esc(sf.name) + '</span>';
-      html += '<span class="tz-filter-delete" data-delete-id="' + esc(sf.id) + '"><i class="fa-solid fa-xmark"></i></span>';
       html += '</button>';
     }
+    html += '<button class="tz-filter-item tz-new-filter" data-action="newFilter">';
+    html += '<i class="fa-solid fa-plus" style="font-size:9px;width:14px;text-align:center;opacity:0.5"></i>';
+    html += '<span>New filter...</span>';
+    html += '</button>';
     html += '</div>';
   }
 
@@ -1389,21 +1392,35 @@ function getInlineCSS() {
 '.tz-filter-item.active { background: var(--tz-accent-soft); color: var(--tz-accent); font-weight: 600; }\n' +
 '.tz-filter-item i { font-size: 11px; width: 14px; text-align: center; flex-shrink: 0; }\n' +
 '.tz-filter-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n' +
-'.tz-filter-delete {\n' +
-'  display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);\n' +
-'  width: 18px; height: 18px; border-radius: 50%;\n' +
-'  align-items: center; justify-content: center;\n' +
-'  font-size: 9px; color: var(--tz-text-faint);\n' +
-'}\n' +
-'.tz-filter-item:hover .tz-filter-delete { display: flex; }\n' +
-'.tz-filter-delete:hover { background: var(--tz-red-soft); color: var(--tz-red); }\n' +
+'.tz-filter-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }\n' +
 '\n/* ---- Drag Handle & Drag States ---- */\n' +
 '.tz-drag-handle {\n' +
-'  font-size: 9px; width: 14px; text-align: center; flex-shrink: 0;\n' +
+'  font-size: 9px; flex-shrink: 0; margin-left: auto;\n' +
 '  color: var(--tz-text-faint); cursor: grab; opacity: 0;\n' +
 '  transition: opacity 0.12s ease;\n' +
 '}\n' +
-'.tz-filter-item.saved:hover .tz-drag-handle { opacity: 1; }\n' +
+'.tz-filter-item.saved:hover .tz-drag-handle { opacity: 0.5; }\n' +
+'\n/* ---- New Filter Button ---- */\n' +
+'.tz-new-filter { color: var(--tz-text-faint); font-style: italic; }\n' +
+'.tz-new-filter:hover { color: var(--tz-text-muted); }\n' +
+'\n/* ---- Context Menu ---- */\n' +
+'.tz-context-menu {\n' +
+'  position: fixed; z-index: 500;\n' +
+'  background: var(--tz-bg-card); border: 1px solid var(--tz-border-strong);\n' +
+'  border-radius: var(--tz-radius-sm); box-shadow: 0 8px 24px color-mix(in srgb, black 25%, transparent);\n' +
+'  padding: 4px; min-width: 140px;\n' +
+'}\n' +
+'.tz-context-opt {\n' +
+'  display: block; width: 100%; padding: 5px 10px; font-size: 12px;\n' +
+'  border: none; background: transparent; color: var(--tz-text);\n' +
+'  text-align: left; border-radius: var(--tz-radius-xs); cursor: pointer;\n' +
+'  display: flex; align-items: center; gap: 8px;\n' +
+'}\n' +
+'.tz-context-opt:hover { background: var(--tz-border); }\n' +
+'.tz-context-opt.danger { color: var(--tz-red); }\n' +
+'.tz-context-opt.danger:hover { background: var(--tz-red-soft); }\n' +
+'.tz-context-opt i { width: 14px; text-align: center; font-size: 11px; }\n' +
+'.tz-context-sep { height: 1px; background: var(--tz-border); margin: 3px 4px; }\n' +
 '.tz-filter-item.saved.is-dragging { opacity: 0.35; }\n' +
 '.tz-filter-item.saved.drag-over-top {\n' +
 '  box-shadow: 0 -2px 0 0 var(--tz-accent) inset;\n' +
@@ -2134,6 +2151,23 @@ async function onMessageFromHTMLView(actionType, data) {
         cfg2.savedFilters = cfg2.savedFilters.filter(function(f) { return f.id !== parsedData.filterId; });
         saveFilters(cfg2.savedFilters);
         await showTaskZoom(parsedData.currentQuery, '__overdue', parsedData.groupBy);
+        break;
+      }
+
+      case 'renameFilter': {
+        var cfg2r = getSettings();
+        for (var ri2 = 0; ri2 < cfg2r.savedFilters.length; ri2++) {
+          if (cfg2r.savedFilters[ri2].id === parsedData.filterId) {
+            cfg2r.savedFilters[ri2].name = parsedData.newName;
+            break;
+          }
+        }
+        saveFilters(cfg2r.savedFilters);
+        // Update the DOM inline via message
+        await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RENAMED', {
+          filterId: parsedData.filterId,
+          newName: parsedData.newName,
+        });
         break;
       }
 

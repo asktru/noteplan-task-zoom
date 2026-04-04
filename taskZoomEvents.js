@@ -66,6 +66,9 @@ function onMessageFromPlugin(type, data) {
     case 'TASK_SCHEDULED':
       handleTaskScheduled(data);
       break;
+    case 'FILTER_RENAMED':
+      handleFilterRenamed(data);
+      break;
     case 'FULL_REFRESH':
       window.location.reload();
       break;
@@ -187,16 +190,86 @@ function handleGroupByClick(btn) {
 }
 
 // ============================================
-// FILTER DELETE
+// FILTER CONTEXT MENU
 // ============================================
 
-function handleFilterDelete(deleteBtn) {
-  var filterId = deleteBtn.dataset.deleteId;
-  if (!filterId) return;
-  sendMessageToPlugin('deleteFilter', {
-    filterId: filterId,
-    currentQuery: currentQuery,
-    groupBy: currentGroupBy,
+function showFilterContextMenu(filterItem, x, y) {
+  removeFilterContextMenu();
+  var filterId = filterItem.dataset.filterId;
+  var filterName = filterItem.dataset.filterName || '';
+
+  var menu = document.createElement('div');
+  menu.className = 'tz-context-menu';
+  menu.id = 'tzContextMenu';
+  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+  menu.style.left = Math.min(x, window.innerWidth - 160) + 'px';
+
+  // Rename
+  var renameOpt = document.createElement('button');
+  renameOpt.className = 'tz-context-opt';
+  var renameIcon = document.createElement('i');
+  renameIcon.className = 'fa-solid fa-pen';
+  renameOpt.appendChild(renameIcon);
+  renameOpt.appendChild(document.createTextNode(' Rename'));
+  renameOpt.addEventListener('click', function() {
+    removeFilterContextMenu();
+    var newName = prompt('Rename filter:', filterName);
+    if (newName && newName.trim()) {
+      sendMessageToPlugin('renameFilter', JSON.stringify({
+        filterId: filterId,
+        newName: newName.trim(),
+      }));
+    }
+  });
+  menu.appendChild(renameOpt);
+
+  // Separator
+  var sep = document.createElement('div');
+  sep.className = 'tz-context-sep';
+  menu.appendChild(sep);
+
+  // Delete
+  var deleteOpt = document.createElement('button');
+  deleteOpt.className = 'tz-context-opt danger';
+  var deleteIcon = document.createElement('i');
+  deleteIcon.className = 'fa-solid fa-trash';
+  deleteOpt.appendChild(deleteIcon);
+  deleteOpt.appendChild(document.createTextNode(' Delete'));
+  deleteOpt.addEventListener('click', function() {
+    removeFilterContextMenu();
+    sendMessageToPlugin('deleteFilter', {
+      filterId: filterId,
+      currentQuery: currentQuery,
+      groupBy: currentGroupBy,
+    });
+  });
+  menu.appendChild(deleteOpt);
+
+  document.body.appendChild(menu);
+  setTimeout(function() {
+    document.addEventListener('click', closeContextMenuOnOutsideClick);
+  }, 0);
+}
+
+function closeContextMenuOnOutsideClick(e) {
+  var menu = document.getElementById('tzContextMenu');
+  if (menu && !menu.contains(e.target)) {
+    removeFilterContextMenu();
+  }
+}
+
+function removeFilterContextMenu() {
+  var existing = document.getElementById('tzContextMenu');
+  if (existing) existing.remove();
+  document.removeEventListener('click', closeContextMenuOnOutsideClick);
+}
+
+function handleFilterRenamed(data) {
+  var items = document.querySelectorAll('.tz-filter-item.saved[data-filter-id="' + data.filterId + '"]');
+  items.forEach(function(item) {
+    item.dataset.filterName = data.newName;
+    var nameEl = item.querySelector('.tz-filter-name');
+    if (nameEl) nameEl.textContent = data.newName;
   });
 }
 
@@ -764,14 +837,20 @@ function attachAllEventListeners() {
   // Filter sidebar items
   document.querySelectorAll('.tz-filter-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
-      // Check if delete button was clicked
-      if (e.target.closest('.tz-filter-delete')) {
-        e.stopPropagation();
-        handleFilterDelete(e.target.closest('.tz-filter-delete'));
+      if (item.dataset.action === 'newFilter') {
+        // Show save filter modal with empty query
+        showSaveFilterModal();
         return;
       }
       handleFilterClick(item);
     });
+    // Right-click context menu for saved filters
+    if (item.classList.contains('saved')) {
+      item.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        showFilterContextMenu(item, e.clientX, e.clientY);
+      });
+    }
   });
 
   // Group-by buttons
