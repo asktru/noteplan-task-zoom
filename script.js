@@ -431,8 +431,29 @@ function scanAllTasks() {
  *   - task, tasks: explicitly filter to tasks only (the default)
  *   - &, AND: AND combinator (default between tokens)
  *   - |, OR: OR combinator
+ *   - (, ): grouping for precedence (e.g. @name (task | checklist))
  *   - NOT or ! prefix: negate next token (e.g. !#waiting, !@someone, !open)
  */
+
+/**
+ * Determine whether a query should include checklist items.
+ * Returns true when the query explicitly mentions task/checklist keywords,
+ * or contains a search term (@mention, #tag, free text, note:, folder:).
+ * Returns false for pure browse queries (status/date/priority only) — tasks only.
+ */
+function queryIncludesChecklists(query) {
+  var ql = (query || '').toLowerCase();
+  if (/\b(checklist|checklists|task|tasks)\b/.test(ql)) return true;
+  if (/@\w/.test(query) || /#\w/.test(query)) return true;
+  if (/\bnote:/.test(ql) || /\bfolder:/.test(ql)) return true;
+  if (/["']/.test(query)) return true;
+  var toks = tokenize(ql);
+  for (var i = 0; i < toks.length; i++) {
+    if (toks[i].type === 'TEXT') return true;
+  }
+  return false;
+}
+
 function parseQuery(queryStr) {
   if (!queryStr || !queryStr.trim()) return null;
 
@@ -451,6 +472,18 @@ function tokenize(str) {
     if (i >= len) break;
 
     var ch = str[i];
+
+    // Parentheses
+    if (ch === '(') {
+      tokens.push({ type: 'LPAREN' });
+      i++;
+      continue;
+    }
+    if (ch === ')') {
+      tokens.push({ type: 'RPAREN' });
+      i++;
+      continue;
+    }
 
     // OR operator
     if (ch === '|') {
@@ -486,7 +519,7 @@ function tokenize(str) {
 
     // Read a word/token
     var wstart = i;
-    while (i < len && str[i] !== ' ' && str[i] !== '|' && str[i] !== '&') i++;
+    while (i < len && str[i] !== ' ' && str[i] !== '|' && str[i] !== '&' && str[i] !== '(' && str[i] !== ')') i++;
     var word = str.slice(wstart, i);
 
     // Check for compound tokens
@@ -559,67 +592,68 @@ function tokenize(str) {
 function buildFilterTree(tokens) {
   if (!tokens || tokens.length === 0) return null;
 
-  // Build a list of conditions connected by AND/OR
-  var conditions = [];
-  var currentOp = 'AND';
-  var negate = false;
+  var pos = 0;
+  function peek() { return pos < tokens.length ? tokens[pos] : null; }
+  function next() { return pos < tokens.length ? tokens[pos++] : null; }
 
-  for (var i = 0; i < tokens.length; i++) {
-    var tok = tokens[i];
+  // parseOr: lowest precedence — handles "|" and "or"
+  function parseOr() {
+    var left = parseAnd();
+    while (peek() && peek().type === 'OR') {
+      next(); // consume OR
+      var right = parseAnd();
+      left = { type: 'or', children: [left, right] };
+    }
+    return left;
+  }
 
-    if (tok.type === 'AND') { currentOp = 'AND'; continue; }
-    if (tok.type === 'OR') { currentOp = 'OR'; continue; }
-    if (tok.type === 'NOT') { negate = true; continue; }
+  // parseAnd: implicit AND between adjacent terms, explicit "&" or "and"
+  function parseAnd() {
+    var terms = [parseUnary()];
+    while (peek() && peek().type !== 'OR' && peek().type !== 'RPAREN') {
+      if (peek().type === 'AND') next(); // consume explicit AND
+      if (!peek() || peek().type === 'OR' || peek().type === 'RPAREN') break;
+      terms.push(parseUnary());
+    }
+    if (terms.length === 1) return terms[0];
+    return { type: 'and', children: terms };
+  }
 
-    var condition;
+  // parseUnary: handles NOT prefix and parenthesized groups
+  function parseUnary() {
+    var negate = false;
+    while (peek() && peek().type === 'NOT') {
+      next();
+      negate = !negate;
+    }
+    var node = parseAtom();
+    return negate ? { type: 'not', child: node } : node;
+  }
+
+  // parseAtom: leaf nodes — filters, text, or (group)
+  function parseAtom() {
+    var tok = peek();
+    if (!tok) return { type: 'text', value: '' };
+
+    if (tok.type === 'LPAREN') {
+      next(); // consume (
+      var expr = parseOr();
+      if (peek() && peek().type === 'RPAREN') next(); // consume )
+      return expr;
+    }
+
+    tok = next();
     if (tok.type === 'FILTER') {
-      condition = { type: 'filter', filterType: tok.filterType, value: tok.value };
-    } else if (tok.type === 'TEXT') {
-      condition = { type: 'text', value: tok.value };
-    } else {
-      continue;
+      return { type: 'filter', filterType: tok.filterType, value: tok.value };
     }
-
-    if (negate) {
-      condition = { type: 'not', child: condition };
-      negate = false;
+    if (tok.type === 'TEXT') {
+      return { type: 'text', value: tok.value };
     }
-
-    conditions.push({ op: currentOp, condition: condition });
-    currentOp = 'AND'; // default back to AND
+    // Skip unexpected tokens
+    return { type: 'text', value: '' };
   }
 
-  if (conditions.length === 0) return null;
-  if (conditions.length === 1) return conditions[0].condition;
-
-  // Build tree respecting OR as lower precedence than AND
-  var orGroups = [];
-  var currentAndGroup = [conditions[0].condition];
-
-  for (var j = 1; j < conditions.length; j++) {
-    if (conditions[j].op === 'OR') {
-      orGroups.push(currentAndGroup);
-      currentAndGroup = [conditions[j].condition];
-    } else {
-      currentAndGroup.push(conditions[j].condition);
-    }
-  }
-  orGroups.push(currentAndGroup);
-
-  // Build AND nodes for each group
-  var orNodes = [];
-  for (var g = 0; g < orGroups.length; g++) {
-    var group = orGroups[g];
-    if (group.length === 1) {
-      orNodes.push(group[0]);
-    } else {
-      orNodes.push({ type: 'and', children: group });
-    }
-  }
-
-  // Combine OR nodes
-  if (orNodes.length === 1) return orNodes[0];
-  return { type: 'or', children: orNodes };
+  return parseOr();
 }
 
 // ============================================
@@ -1199,15 +1233,12 @@ function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
   }
   var allMentionsList = Object.keys(allMentionsSet).sort().map(function(k) { return allMentionsSet[k]; });
 
-  // Check if query explicitly mentions task kind
-  var queryLower = (activeQuery || '').toLowerCase();
-  var hasKindKeyword = /\b(checklist|checklists|task|tasks)\b/.test(queryLower);
+  var includeChecklists = queryIncludesChecklists(activeQuery);
 
   var filter = parseQuery(activeQuery);
   var filteredTasks = [];
   for (var i = 0; i < allTasks.length; i++) {
-    // If query doesn't specify task kind, default to tasks only
-    if (!hasKindKeyword && allTasks[i].taskKind !== 'task') continue;
+    if (!includeChecklists && allTasks[i].taskKind !== 'task') continue;
     if (evaluateFilter(allTasks[i], filter)) {
       filteredTasks.push(allTasks[i]);
     }
@@ -2018,12 +2049,11 @@ async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
 
     for (var qfi = 0; qfi < quickFilters.length; qfi++) {
       var qf = quickFilters[qfi];
-      var qfQueryLower = qf.query.toLowerCase();
-      var qfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(qfQueryLower);
+      var qfIncludeCL = queryIncludesChecklists(qf.query);
       var qfFilter = parseQuery(qf.query);
       var qfFiltered = [];
       for (var qi = 0; qi < allTasks.length; qi++) {
-        if (!qfHasKind && allTasks[qi].taskKind !== 'task') continue;
+        if (!qfIncludeCL && allTasks[qi].taskKind !== 'task') continue;
         if (evaluateFilter(allTasks[qi], qfFilter)) qfFiltered.push(allTasks[qi]);
       }
 
@@ -2157,12 +2187,11 @@ async function onMessageFromHTMLView(actionType, data) {
         if (globalThis._tzFilterCache[rfCacheKey]) {
           rfFiltered = globalThis._tzFilterCache[rfCacheKey];
         } else {
-          var rfQueryLower = (rfQuery || '').toLowerCase();
-          var rfHasKind = /\b(checklist|checklists|task|tasks)\b/.test(rfQueryLower);
+          var rfIncludeCL = queryIncludesChecklists(rfQuery);
           var rfFilter = parseQuery(rfQuery);
           rfFiltered = [];
           for (var rfi = 0; rfi < rfAllTasks.length; rfi++) {
-            if (!rfHasKind && rfAllTasks[rfi].taskKind !== 'task') continue;
+            if (!rfIncludeCL && rfAllTasks[rfi].taskKind !== 'task') continue;
             if (evaluateFilter(rfAllTasks[rfi], rfFilter)) rfFiltered.push(rfAllTasks[rfi]);
           }
           globalThis._tzFilterCache[rfCacheKey] = rfFiltered;
