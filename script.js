@@ -926,6 +926,12 @@ function renderMarkdown(str) {
   // Mentions: @mention
   s = s.replace(/(^|[\s(])@([\w][\w/-]*(?:\([^)]*\))?)/g, '$1<span class="tz-mention">@$2</span>');
 
+  // Inline comments: /* ... */ (muted)
+  s = s.replace(/\/\*([^*]*(?:\*(?!\/)[^*]*)*)\*\//g, '<span class="tz-comment">/*$1*/</span>');
+
+  // End-line comments: // ... (muted, but not URLs like https://)
+  s = s.replace(/(^|[^:])\/\/\s(.*)$/g, '$1<span class="tz-comment">// $2</span>');
+
   return s;
 }
 
@@ -1652,6 +1658,9 @@ priCSS('tz-task-pri') +
 '}\n' +
 '.tz-tag, .tz-mention {\n' +
 '  color: var(--tz-orange); font-weight: 600;\n' +
+'}\n' +
+'.tz-comment {\n' +
+'  color: var(--tz-text-faint); font-style: italic;\n' +
 '}\n' +
 '\n/* ---- Task Hover Actions ---- */\n' +
 '.tz-task-acts {\n' +
