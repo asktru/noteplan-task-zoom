@@ -90,6 +90,12 @@
       "description": "Refresh the Task Zoom dashboard",
       "jsFunction": "refreshTaskZoom",
       "hidden": true
+    },
+    {
+      "name": "onUpdateOrInstall",
+      "description": "Install dependencies after install/update",
+      "jsFunction": "onUpdateOrInstall",
+      "hidden": true
     }
   ]
 }
