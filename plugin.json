@@ -62,7 +62,7 @@
   ],
   "plugin.commands": [
     {
-      "name": "Task Zoom",
+      "name": "Open in sidebar",
       "alias": ["tz", "task zoom", "task filter"],
       "description": "Open the Task Zoom smart filter dashboard",
       "jsFunction": "showTaskZoom",
@@ -72,6 +72,11 @@
         "icon": "magnifying-glass-plus",
         "iconColor": "#F59E0B"
       }
+    },
+    {
+      "name": "Open in separate window",
+      "description": "Open Task Zoom in a separate window",
+      "jsFunction": "showTaskZoomWindow"
     },
     {
       "name": "onMessageFromHTMLView",

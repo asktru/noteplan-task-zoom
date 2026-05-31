@@ -3,7 +3,21 @@
    Runs inside the HTML WebView window
    ============================================ */
 
-// receivingPluginID is set in the inline script before the bridge loads
+/* global sendMessageToPlugin, npWindowID */
+
+// receivingPluginID and npWindowID are set in the inline script before the bridge
+// loads. Route every outgoing message through sendToPlugin so each payload carries
+// the originating window's ID; the plugin replies to that window (sidebar embed vs.
+// separate floating window). sendMessageToPlugin is `const` in the bridge and can't
+// be monkey-patched, so we wrap it.
+function sendToPlugin(action, data) {
+  try {
+    var d = data ? JSON.parse(data) : {};
+    if (typeof npWindowID !== 'undefined' && npWindowID && d._windowID === undefined) d._windowID = npWindowID;
+    data = JSON.stringify(d);
+  } catch (e) {}
+  return sendMessageToPlugin(action, data);
+}
 
 // ============================================
 // STATE
@@ -131,7 +145,7 @@ function handleTaskScheduled(data) {
 }
 
 function triggerRefresh() {
-  sendMessageToPlugin('refresh', {
+  sendToPlugin('refresh', {
     query: currentQuery,
     filterId: currentFilterId,
     groupBy: currentGroupBy,
@@ -148,7 +162,7 @@ function handleSearchSubmit() {
   currentQuery = input.value.trim();
   // If query changed from the original, we're in "edited" mode but keep the filter context
   updateSaveButtonVisibility();
-  sendMessageToPlugin('runFilter', {
+  sendToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
     groupBy: currentGroupBy,
@@ -162,7 +176,7 @@ function handleSearchClear() {
   currentFilterId = '__overdue';
   originalQuery = currentQuery;
   updateSaveButtonVisibility();
-  sendMessageToPlugin('runFilter', {
+  sendToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
     groupBy: currentGroupBy,
@@ -190,7 +204,7 @@ function handleFilterClick(filterItem) {
     var pfGroup = currentGroupBy;
     applyPrebuiltFilter(currentFilterId, pfGroup);
     // Save preference via plugin (fire-and-forget, no wait)
-    sendMessageToPlugin('savePrefs', JSON.stringify({
+    sendToPlugin('savePrefs', JSON.stringify({
       filterId: currentFilterId,
       query: currentQuery,
       groupBy: pfGroup,
@@ -200,7 +214,7 @@ function handleFilterClick(filterItem) {
 
   // Fallback: ask plugin
   filterItem.classList.add('loading');
-  sendMessageToPlugin('runFilter', {
+  sendToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
     groupBy: null,
@@ -217,7 +231,7 @@ function handleGroupByClick(btn) {
   // Try client-side instant switch
   if (typeof _prebuiltFilters !== 'undefined' && _prebuiltFilters[currentFilterId]) {
     applyPrebuiltFilter(currentFilterId, currentGroupBy);
-    sendMessageToPlugin('savePrefs', JSON.stringify({
+    sendToPlugin('savePrefs', JSON.stringify({
       filterId: currentFilterId,
       query: currentQuery,
       groupBy: currentGroupBy,
@@ -227,7 +241,7 @@ function handleGroupByClick(btn) {
 
   // Fallback
   btn.classList.add('loading');
-  sendMessageToPlugin('runFilter', {
+  sendToPlugin('runFilter', {
     query: currentQuery,
     filterId: currentFilterId,
     groupBy: currentGroupBy,
@@ -276,7 +290,7 @@ function showFilterContextMenu(filterItem, x, y) {
   deleteOpt.appendChild(document.createTextNode(' Delete'));
   deleteOpt.addEventListener('click', function() {
     removeFilterContextMenu();
-    sendMessageToPlugin('deleteFilter', {
+    sendToPlugin('deleteFilter', {
       filterId: filterId,
       currentQuery: currentQuery,
       groupBy: currentGroupBy,
@@ -337,7 +351,7 @@ function showRenameModal(filterId, currentName) {
   saveBtn.addEventListener('click', function() {
     var newName = nameInput.value.trim();
     if (!newName) { nameInput.style.borderColor = 'var(--tz-red)'; return; }
-    sendMessageToPlugin('renameFilter', JSON.stringify({
+    sendToPlugin('renameFilter', JSON.stringify({
       filterId: filterId,
       newName: newName,
     }));
@@ -485,7 +499,7 @@ function showSaveDropdown() {
   updateOpt.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save changes';
   updateOpt.addEventListener('click', function(e) {
     e.stopPropagation();
-    sendMessageToPlugin('updateFilter', {
+    sendToPlugin('updateFilter', {
       filterId: currentFilterId,
       query: query,
       groupBy: currentGroupBy,
@@ -561,7 +575,7 @@ function showSaveAsNewModal(query) {
       nameInput.style.borderColor = 'var(--tz-red)';
       return;
     }
-    sendMessageToPlugin('saveFilter', {
+    sendToPlugin('saveFilter', {
       name: name,
       query: query,
       groupBy: currentGroupBy,
@@ -600,21 +614,21 @@ function handleTaskAction(actionEl) {
 
   switch (action) {
     case 'toggleComplete':
-      sendMessageToPlugin('toggleTaskComplete', {
+      sendToPlugin('toggleTaskComplete', {
         encodedFilename: encodedFilename,
         lineIndex: lineIndex,
       });
       break;
 
     case 'toggleCancel':
-      sendMessageToPlugin('toggleTaskCancel', {
+      sendToPlugin('toggleTaskCancel', {
         encodedFilename: encodedFilename,
         lineIndex: lineIndex,
       });
       break;
 
     case 'cyclePriority':
-      sendMessageToPlugin('cycleTaskPriority', {
+      sendToPlugin('cycleTaskPriority', {
         encodedFilename: encodedFilename,
         lineIndex: lineIndex,
       });
@@ -629,7 +643,7 @@ function handleTaskAction(actionEl) {
       break;
 
     case 'openNote':
-      sendMessageToPlugin('openNote', {
+      sendToPlugin('openNote', {
         encodedFilename: encodedFilename,
       });
       break;
@@ -660,7 +674,7 @@ function showSchedulePicker(anchorEl, encodedFilename, lineIndex) {
     opt.dataset.dateValue = options[i].value;
     opt.addEventListener('click', function(e) {
       e.stopPropagation();
-      sendMessageToPlugin('scheduleTask', {
+      sendToPlugin('scheduleTask', {
         encodedFilename: encodedFilename,
         lineIndex: lineIndex,
         dateStr: this.dataset.dateValue,
@@ -677,7 +691,7 @@ function showSchedulePicker(anchorEl, encodedFilename, lineIndex) {
   dateInput.addEventListener('change', function(e) {
     e.stopPropagation();
     if (!this.value) return;
-    sendMessageToPlugin('scheduleTask', {
+    sendToPlugin('scheduleTask', {
       encodedFilename: encodedFilename,
       lineIndex: lineIndex,
       dateStr: this.value,
@@ -692,7 +706,7 @@ function showSchedulePicker(anchorEl, encodedFilename, lineIndex) {
   clearOpt.textContent = 'Remove schedule';
   clearOpt.addEventListener('click', function(e) {
     e.stopPropagation();
-    sendMessageToPlugin('scheduleTask', {
+    sendToPlugin('scheduleTask', {
       encodedFilename: encodedFilename,
       lineIndex: lineIndex,
       dateStr: '',
@@ -781,7 +795,7 @@ function showAssignPicker(anchorEl, encodedFilename, lineIndex) {
   }
 
   function doAssign(mention) {
-    sendMessageToPlugin('assignPerson', {
+    sendToPlugin('assignPerson', {
       encodedFilename: encodedFilename,
       lineIndex: lineIndex,
       mention: mention,
@@ -911,7 +925,7 @@ function handleDrop(e) {
   parent.querySelectorAll('.tz-filter-item.saved').forEach(function(item) {
     newOrder.push(item.dataset.filterId);
   });
-  sendMessageToPlugin('reorderFilters', { orderedIds: newOrder });
+  sendToPlugin('reorderFilters', { orderedIds: newOrder });
 }
 
 function handleDragEnd(e) {

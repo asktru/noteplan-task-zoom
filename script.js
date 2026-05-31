@@ -7,6 +7,7 @@
 
 var PLUGIN_ID = 'asktru.TaskZoom';
 var WINDOW_ID = 'asktru.TaskZoom.dashboard';
+var WINDOW_ID_FLOATING = 'asktru.TaskZoom.dashboardWindow';
 
 function getSettings() {
   const settings = DataStore.settings || {};
@@ -1274,7 +1275,7 @@ function buildDashboardHTML(config, activeQuery, activeFilterId, groupBy) {
   return html;
 }
 
-function buildFullHTML(bodyContent, extraScripts) {
+function buildFullHTML(bodyContent, extraScripts, windowID) {
   var themeCSS = getThemeCSS();
   var pluginCSS = getInlineCSS();
 
@@ -1292,7 +1293,7 @@ function buildFullHTML(bodyContent, extraScripts) {
     '  <style>' + themeCSS + '\n' + pluginCSS + '</style>\n' +
     '</head>\n<body>\n' +
     bodyContent + '\n' +
-    '  <script>\n    var receivingPluginID = \'' + PLUGIN_ID + '\';\n  <\/script>\n' +
+    '  <script>\n    var receivingPluginID = \'' + PLUGIN_ID + '\';\n    var npWindowID = \'' + (windowID || WINDOW_ID) + '\';\n  <\/script>\n' +
     (extraScripts || '') +
     '  <script type="text/javascript" src="taskZoomEvents.js"><\/script>\n' +
     '  <script type="text/javascript" src="../np.Shared/pluginToHTMLCommsBridge.js"><\/script>\n' +
@@ -2017,7 +2018,7 @@ function scheduleTask(filename, lineIndex, dateStr) {
 // PLUGIN COMMANDS
 // ============================================
 
-async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
+async function showTaskZoom(activeQuery, activeFilterId, groupBy, targetWindowID) {
   try {
     CommandBar.showLoading(true, 'Scanning tasks...');
     await CommandBar.onAsyncThread();
@@ -2109,29 +2110,38 @@ async function showTaskZoom(activeQuery, activeFilterId, groupBy) {
       })()
     ) + ';<\/script>\n';
 
-    var fullHTML = buildFullHTML(bodyContent, prebuiltScript);
+    var winID = targetWindowID || WINDOW_ID;
+    var isFloating = winID === WINDOW_ID_FLOATING;
+
+    var fullHTML = buildFullHTML(bodyContent, prebuiltScript, winID);
 
     await CommandBar.onMainThread();
     CommandBar.showLoading(false);
 
     var winOptions = {
-      customId: WINDOW_ID,
-      savedFilename: '../../asktru.TaskZoom/task_zoom.html',
+      customId: winID,
+      savedFilename: isFloating ? '../../asktru.TaskZoom/taskzoom_window.html' : '../../asktru.TaskZoom/task_zoom.html',
       shouldFocus: true,
       reuseUsersWindowRect: true,
       headerBGColor: 'transparent',
       autoTopPadding: true,
       showReloadButton: true,
       reloadPluginID: PLUGIN_ID,
-      reloadCommandName: 'Task Zoom',
+      reloadCommandName: isFloating ? 'Open in separate window' : 'Open in sidebar',
       icon: 'fa-magnifying-glass-plus',
       iconColor: '#F59E0B',
     };
 
-    var result = await HTMLView.showInMainWindow(fullHTML, 'Task Zoom', winOptions);
-    if (!result || !result.success) {
-      console.log('TaskZoom: showInMainWindow failed, falling back to floating window');
+    if (isFloating) {
+      winOptions.width = 1200;
+      winOptions.height = 800;
       await HTMLView.showWindowWithOptions(fullHTML, 'Task Zoom', winOptions);
+    } else {
+      var result = await HTMLView.showInMainWindow(fullHTML, 'Task Zoom', winOptions);
+      if (!result || !result.success) {
+        console.log('TaskZoom: showInMainWindow failed, falling back to floating window');
+        await HTMLView.showWindowWithOptions(fullHTML, 'Task Zoom', winOptions);
+      }
     }
   } catch (err) {
     CommandBar.showLoading(false);
@@ -2144,12 +2154,19 @@ async function refreshTaskZoom() {
   await showTaskZoom();
 }
 
+// Open the same dashboard in a separate (floating) window, distinct from the
+// sidebar embed so the two views stay independently routed.
+async function showTaskZoomWindow() {
+  await showTaskZoom(null, null, null, WINDOW_ID_FLOATING);
+}
+
 /**
  * Handle messages from the HTML window
  */
 async function onMessageFromHTMLView(actionType, data) {
   try {
     var parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+    var replyWindowID = (parsedData && parsedData._windowID) || WINDOW_ID;
 
     switch (actionType) {
       case 'savePrefs': {
@@ -2234,7 +2251,7 @@ async function onMessageFromHTMLView(actionType, data) {
         }
 
         console.log('TaskZoom runFilter: html ready ' + (Date.now() - rfT0) + 'ms, htmlLen=' + (rfBodyHTML || '').length);
-        await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RESULTS', {
+        await sendToHTMLWindow(replyWindowID, 'FILTER_RESULTS', {
           bodyHTML: rfBodyHTML,
           taskCount: rfCount,
           query: rfQuery,
@@ -2249,7 +2266,7 @@ async function onMessageFromHTMLView(actionType, data) {
       case 'toggleTaskComplete': {
         invalidateTaskCache();
         var fn1 = decSafe(parsedData.encodedFilename);
-        var myWinId = 'asktru.TaskZoom.dashboard';
+        var myWinId = replyWindowID;
         // Check for @repeat before toggling
         var tc1Note = findNoteByFilename(fn1);
         var tc1Para = tc1Note ? tc1Note.paragraphs[parsedData.lineIndex] : null;
@@ -2282,7 +2299,7 @@ async function onMessageFromHTMLView(actionType, data) {
       case 'toggleTaskCancel': {
         invalidateTaskCache();
         var fn2 = decSafe(parsedData.encodedFilename);
-        var myWinId2 = 'asktru.TaskZoom.dashboard';
+        var myWinId2 = replyWindowID;
         var tc2Note = findNoteByFilename(fn2);
         var tc2Para = tc2Note ? tc2Note.paragraphs[parsedData.lineIndex] : null;
         var tc2HasRepeat = tc2Para && (tc2Para.content || '').indexOf('@repeat') >= 0;
@@ -2315,7 +2332,7 @@ async function onMessageFromHTMLView(actionType, data) {
         var fn3 = decSafe(parsedData.encodedFilename);
         var result3 = cycleTaskPriority(fn3, parsedData.lineIndex);
         if (result3) {
-          await sendToHTMLWindow(WINDOW_ID, 'TASK_PRIORITY_CHANGED', {
+          await sendToHTMLWindow(replyWindowID, 'TASK_PRIORITY_CHANGED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result3.lineIndex,
             newPriority: result3.newPriority,
@@ -2329,7 +2346,7 @@ async function onMessageFromHTMLView(actionType, data) {
         var fn4 = decSafe(parsedData.encodedFilename);
         var result4 = scheduleTask(fn4, parsedData.lineIndex, parsedData.dateStr);
         if (result4) {
-          await sendToHTMLWindow(WINDOW_ID, 'TASK_SCHEDULED', {
+          await sendToHTMLWindow(replyWindowID, 'TASK_SCHEDULED', {
             encodedFilename: parsedData.encodedFilename,
             lineIndex: result4.lineIndex,
             scheduledDate: result4.scheduledDate,
@@ -2370,7 +2387,7 @@ async function onMessageFromHTMLView(actionType, data) {
         };
         cfg1.savedFilters.push(newFilter);
         saveFilters(cfg1.savedFilters);
-        await showTaskZoom(parsedData.query, newFilter.id, parsedData.groupBy);
+        await showTaskZoom(parsedData.query, newFilter.id, parsedData.groupBy, replyWindowID);
         break;
       }
 
@@ -2383,8 +2400,8 @@ async function onMessageFromHTMLView(actionType, data) {
           }
         }
         saveFilters(cfgUpd.savedFilters);
-        sendToHTMLWindow('SHOW_TOAST', { message: 'Filter updated' });
-        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy);
+        sendToHTMLWindow(replyWindowID, 'SHOW_TOAST', { message: 'Filter updated' });
+        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy, replyWindowID);
         break;
       }
 
@@ -2392,7 +2409,7 @@ async function onMessageFromHTMLView(actionType, data) {
         var cfg2 = getSettings();
         cfg2.savedFilters = cfg2.savedFilters.filter(function(f) { return f.id !== parsedData.filterId; });
         saveFilters(cfg2.savedFilters);
-        await showTaskZoom(parsedData.currentQuery, '__overdue', parsedData.groupBy);
+        await showTaskZoom(parsedData.currentQuery, '__overdue', parsedData.groupBy, replyWindowID);
         break;
       }
 
@@ -2406,7 +2423,7 @@ async function onMessageFromHTMLView(actionType, data) {
         }
         saveFilters(cfg2r.savedFilters);
         // Update the DOM inline via message
-        await sendToHTMLWindow('asktru.TaskZoom.dashboard', 'FILTER_RENAMED', {
+        await sendToHTMLWindow(replyWindowID, 'FILTER_RENAMED', {
           filterId: parsedData.filterId,
           newName: parsedData.newName,
         });
@@ -2440,13 +2457,13 @@ async function onMessageFromHTMLView(actionType, data) {
         var result6 = assignPerson(fn6, parsedData.lineIndex, parsedData.mention);
         if (result6) {
           // Full refresh to show updated content
-          await showTaskZoom(parsedData.query || 'open', parsedData.filterId, parsedData.groupBy);
+          await showTaskZoom(parsedData.query || 'open', parsedData.filterId, parsedData.groupBy, replyWindowID);
         }
         break;
       }
 
       case 'refresh': {
-        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy);
+        await showTaskZoom(parsedData.query, parsedData.filterId, parsedData.groupBy, replyWindowID);
         break;
       }
 
@@ -2518,6 +2535,7 @@ async function onUpdateOrInstall() {
 // ============================================
 
 globalThis.showTaskZoom = showTaskZoom;
+globalThis.showTaskZoomWindow = showTaskZoomWindow;
 globalThis.onMessageFromHTMLView = onMessageFromHTMLView;
 globalThis.refreshTaskZoom = refreshTaskZoom;
 globalThis.onUpdateOrInstall = onUpdateOrInstall;
