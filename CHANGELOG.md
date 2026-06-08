@@ -1,5 +1,13 @@
 # What's changed in 🔍 Task Zoom plugin?
 
+## [1.2.0] 2026-06-07
+### New
+- **Open in separate window** command with per-window reply routing.
+- np.Shared is auto-installed on install/update.
+
+### Changes
+- Inline and end-of-line comments are muted in task display.
+
 ## [1.1.1] 2026-04-12
 ### New
 - **Wiki-link rendering**: `[[Note Name]]` references in task text become clickable links that open the note.
