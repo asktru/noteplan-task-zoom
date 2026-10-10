@@ -7,8 +7,8 @@
   "plugin.description": "Smart task filtering with saved filters, Todoist-like query syntax, and flexible grouping.",
   "plugin.icon": "🔍",
   "plugin.author": "asktru",
-  "plugin.version": "1.2.0",
-  "plugin.lastUpdateInfo": "New 'Open in separate window' command, muted inline and end-of-line comments in task display, and automatic np.Shared installation.",
+  "plugin.version": "1.2.1",
+  "plugin.lastUpdateInfo": "Support for NotePlan's Apple Reminders links: @remind(...) tags are hidden instead of shown as raw text.",
   "plugin.script": "script.js",
   "plugin.isRemote": "false",
   "plugin.requiredFiles": [

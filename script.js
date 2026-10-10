@@ -8,6 +8,8 @@
 var PLUGIN_ID = 'asktru.TaskZoom';
 var WINDOW_ID = 'asktru.TaskZoom.dashboard';
 var WINDOW_ID_FLOATING = 'asktru.TaskZoom.dashboardWindow';
+// NotePlan Apple Reminders link: @remind, @remind(args) or linked @remind(args:::reminderId)
+var REMIND_RE = /\s*@remind(?:\([^()]*\)|(?![\w(]))/g;
 
 function getSettings() {
   const settings = DataStore.settings || {};
@@ -298,6 +300,8 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     else if (p.type === 'checklistCancelled') normalizedType = 'cancelled';
 
     var content = p.content || '';
+    // Content without the @remind token, so its args (times, dates, list names) aren't parsed as metadata
+    var metaContent = content.replace(REMIND_RE, '');
 
     // Parse priority
     var priority = 0;
@@ -306,8 +310,8 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     else if (content.startsWith('! ')) priority = 1;
 
     // Parse explicit scheduled date from task content
-    var schedMatch = content.match(/>(\d{4}-\d{2}-\d{2})/);
-    var weekMatch = content.match(/>(\d{4}-W\d{2})/);
+    var schedMatch = metaContent.match(/>(\d{4}-\d{2}-\d{2})/);
+    var weekMatch = metaContent.match(/>(\d{4}-W\d{2})/);
     var scheduledDate = schedMatch ? schedMatch[1] : null;
     var scheduledWeek = weekMatch ? weekMatch[1] : null;
 
@@ -322,14 +326,14 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     }
 
     // Parse due date from @due(YYYY-MM-DD)
-    var dueMatch = content.match(/@due\((\d{4}-\d{2}-\d{2})\)/);
+    var dueMatch = metaContent.match(/@due\((\d{4}-\d{2}-\d{2})\)/);
     var dueDate = dueMatch ? dueMatch[1] : null;
 
     // Parse inline tags (#tag)
     var inlineTags = [];
     var tagRegex = /#[\w\-\/]+/g;
     var tm;
-    while ((tm = tagRegex.exec(content)) !== null) {
+    while ((tm = tagRegex.exec(metaContent)) !== null) {
       inlineTags.push(tm[0]);
     }
 
@@ -337,7 +341,7 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     var inlineMentions = [];
     var mentionRegex = /@[\w\-]+(?:\([^)]*\))?/g;
     var mm;
-    while ((mm = mentionRegex.exec(content)) !== null) {
+    while ((mm = mentionRegex.exec(metaContent)) !== null) {
       // Skip @done and @due (system metadata), but keep @repeat (useful for filtering)
       if (!mm[0].startsWith('@done') && !mm[0].startsWith('@due')) {
         inlineMentions.push(mm[0].replace(/\([^)]*\)$/, ''));
@@ -355,6 +359,7 @@ function extractTasksFromNote(note, tasks, config, calendarInfo) {
     display = display.replace(/\s*>today/g, '');
     display = display.replace(/\s*@done\([^)]*\)/g, '');
     display = display.replace(/\s*@repeat\([^)]*\)/g, '');
+    display = display.replace(REMIND_RE, '');
 
     tasks.push({
       lineIndex: i,

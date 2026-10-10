@@ -1,5 +1,9 @@
 # What's changed in 🔍 Task Zoom plugin?
 
+## [1.2.1] 2026-10-10
+### Fixes
+- `@remind(...)` tags (NotePlan's Apple Reminders link) are hidden in task display, and are no longer read as mentions, tags or scheduled dates.
+
 ## [1.2.0] 2026-06-07
 ### New
 - **Open in separate window** command with per-window reply routing.
